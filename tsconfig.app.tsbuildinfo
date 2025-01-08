@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/imgmodal.tsx","./src/components/prompt.tsx","./src/components/icon/arrow.tsx","./src/components/icon/close.tsx","./src/domain/imgmodalprops.ts","./src/pages/imgoutput.tsx"],"version":"5.6.3"}
