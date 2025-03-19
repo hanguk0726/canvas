@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react';
 import { CloseIcon } from '../icon/Close';
 import Canvas from './canvas/Canvas';
 import { CloseButton } from './CloseButton';
+import CubicBezierCanvas from './cubicBezierCanvas/CubicBezierCanvas';
 
 const Editor = ({ image, onClose }: { image: string, onClose: () => void }) => {
-    const [isVisible, setIsVisible] = useState(false);
+    const [isVisible, setIsVisible] = useState(true); //xxx
 
     useEffect(() => {
         setIsVisible(true);
@@ -23,7 +24,8 @@ const Editor = ({ image, onClose }: { image: string, onClose: () => void }) => {
             
             <div className="min-h-screen w-full flex justify-center items-center bg-white">
                 <div className='max-w-[700px] aspect-square'>
-                    <Canvas imageSrc={image} />
+                    {/* <Canvas imageSrc={image} /> */}
+					<CubicBezierCanvas />
                 </div>
             </div>
         </div>
