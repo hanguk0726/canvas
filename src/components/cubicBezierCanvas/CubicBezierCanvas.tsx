@@ -237,8 +237,15 @@ const DynamicCurveEditor: React.FC = () => {
     const rect = canvasRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const newX = Math.min(1, Math.max(0, mouseX / canvasSize));
+    let newX = Math.min(1, Math.max(0, mouseX / canvasSize));
     const newY = Math.min(1, Math.max(0, mouseY / canvasSize));
+
+    if (draggingIndex > 0 && draggingIndex < controlPoints.length - 1) {
+      const leftX = controlPoints[draggingIndex - 1].x;
+      const rightX = controlPoints[draggingIndex + 1].x;
+      newX = Math.min(rightX, Math.max(leftX, newX));
+    }
+
     setControlPoints((prev) => {
       const newPoints = [...prev];
       newPoints[draggingIndex] = { x: newX, y: newY };
