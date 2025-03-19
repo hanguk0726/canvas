@@ -1,121 +1,144 @@
 import React, { useState, useRef, useEffect, MouseEvent } from "react";
 
 interface ControlPoint {
-  x: number; // normalized 0 ~ 1
-  y: number; // normalized 0 ~ 1
+  x: number; // 0 ~ 1 사이의 정규화된 값
+  y: number; // 0 ~ 1 사이의 정규화된 값
 }
 
-const DynamicBezierEditor: React.FC = () => {
+const DynamicCurveEditor: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const canvasSize = 400; // 정사각형 캔버스 (400×400)
+  const canvasSize = 400; // 캔버스 크기 (400×400 픽셀)
 
-  // 초기 control point: (0,0)와 (1,1)은 고정되어 있음.
+  // 초기 컨트롤 포인트: (0,0)과 (1,1)은 고정
   const [controlPoints, setControlPoints] = useState<ControlPoint[]>([
     { x: 0, y: 0 },
     { x: 1, y: 1 },
   ]);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
-  // normalized -> canvas 좌표 변환 (y는 뒤집음)
+  // 정규화된 좌표를 캔버스 좌표로 변환
   const getCanvasX = (x: number) => x * canvasSize;
-  const getCanvasY = (y: number) => canvasSize * y; // 여기서는 (0,0)이 왼쪽 상단, (1,1)이 오른쪽 하단
+  const getCanvasY = (y: number) => y * canvasSize;
 
-  // 두 점 (x1,y1)와 (x2,y2)를 잇는 선분과 점 (px,py) 사이의 거리를 구하는 함수
-  const distanceToSegment = (
-    px: number,
-    py: number,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number
-  ): number => {
-    const A = px - x1;
-    const B = py - y1;
-    const C = x2 - x1;
-    const D = y2 - y1;
-
-    const dot = A * C + B * D;
-    const lenSq = C * C + D * D;
-    let param = -1;
-    if (lenSq !== 0) {
-      param = dot / lenSq;
+  // Catmull-Rom 스플라인 세그먼트 그리기
+  const drawCatmullRomSegment = (
+    ctx: CanvasRenderingContext2D,
+    p0: ControlPoint,
+    p1: ControlPoint,
+    p2: ControlPoint,
+    p3: ControlPoint
+  ) => {
+    const steps = 100;
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x =
+        0.5 *
+        (2 * p1.x +
+          (-p0.x + p2.x) * t +
+          (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
+          (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
+      const y =
+        0.5 *
+        (2 * p1.y +
+          (-p0.y + p2.y) * t +
+          (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
+          (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
+      const canvasX = getCanvasX(x);
+      const canvasY = getCanvasY(y);
+      if (i === 0) ctx.moveTo(canvasX, canvasY);
+      else ctx.lineTo(canvasX, canvasY);
     }
-    let xx, yy;
-    if (param < 0) {
-      xx = x1;
-      yy = y1;
-    } else if (param > 1) {
-      xx = x2;
-      yy = y2;
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  };
+
+  // 전체 곡선 그리기
+  const drawCurve = (ctx: CanvasRenderingContext2D) => {
+    if (controlPoints.length < 2) return;
+
+    if (controlPoints.length === 2) {
+      // 두 점일 경우 직선
+      ctx.beginPath();
+      ctx.moveTo(
+        getCanvasX(controlPoints[0].x),
+        getCanvasY(controlPoints[0].y)
+      );
+      ctx.lineTo(
+        getCanvasX(controlPoints[1].x),
+        getCanvasY(controlPoints[1].y)
+      );
+      ctx.strokeStyle = "black";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (controlPoints.length === 3) {
+      // 세 점일 경우 가상 포인트 추가
+      const p0 = controlPoints[0];
+      const p1 = controlPoints[1];
+      const p2 = controlPoints[2];
+      const pNeg1 = { x: 2 * p0.x - p1.x, y: 2 * p0.y - p1.y };
+      const p3 = { x: 2 * p2.x - p1.x, y: 2 * p2.y - p1.y };
+      drawCatmullRomSegment(ctx, pNeg1, p0, p1, p2);
+      drawCatmullRomSegment(ctx, p0, p1, p2, p3);
     } else {
-      xx = x1 + param * C;
-      yy = y1 + param * D;
+      // 네 점 이상일 경우
+      const pNeg1 = {
+        x: 2 * controlPoints[0].x - controlPoints[1].x,
+        y: 2 * controlPoints[0].y - controlPoints[1].y,
+      };
+      drawCatmullRomSegment(
+        ctx,
+        pNeg1,
+        controlPoints[0],
+        controlPoints[1],
+        controlPoints[2]
+      );
+
+      for (let i = 1; i < controlPoints.length - 2; i++) {
+        drawCatmullRomSegment(
+          ctx,
+          controlPoints[i - 1],
+          controlPoints[i],
+          controlPoints[i + 1],
+          controlPoints[i + 2]
+        );
+      }
+
+      const pNPlus1 = {
+        x:
+          2 * controlPoints[controlPoints.length - 1].x -
+          controlPoints[controlPoints.length - 2].x,
+        y:
+          2 * controlPoints[controlPoints.length - 1].y -
+          controlPoints[controlPoints.length - 2].y,
+      };
+      drawCatmullRomSegment(
+        ctx,
+        controlPoints[controlPoints.length - 3],
+        controlPoints[controlPoints.length - 2],
+        controlPoints[controlPoints.length - 1],
+        pNPlus1
+      );
     }
-    const dx = px - xx;
-    const dy = py - yy;
-    return Math.hypot(dx, dy);
   };
 
-  // De Casteljau 알고리즘으로 t에 따른 베지어 곡선상의 점을 구함.
-  const deCasteljau = (t: number, points: ControlPoint[]): ControlPoint => {
-    let temp = points.map((p) => ({ ...p }));
-    while (temp.length > 1) {
-      temp = temp.slice(0, temp.length - 1).map((_, i) => ({
-        x: (1 - t) * temp[i].x + t * temp[i + 1].x,
-        y: (1 - t) * temp[i].y + t * temp[i + 1].y,
-      }));
-    }
-    return temp[0];
-  };
-
-  // 캔버스에 베지어 곡선과 제어선, 제어점들을 그림.
+  // 캔버스 렌더링
   useEffect(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvasSize, canvasSize);
 
-    // control polygon (점선)
-    ctx.beginPath();
-    ctx.strokeStyle = "gray";
-    ctx.setLineDash([5, 5]);
-    controlPoints.forEach((p, i) => {
-      const x = getCanvasX(p.x);
-      const y = getCanvasY(p.y);
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // 곡선 그리기
+    drawCurve(ctx);
 
-    // 베지어 곡선 그리기 (De Casteljau 알고리즘으로 100개의 샘플)
-    ctx.beginPath();
-    const steps = 100;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const pt = deCasteljau(t, controlPoints);
-      const x = getCanvasX(pt.x);
-      const y = getCanvasY(pt.y);
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // control point 그리기
+    // 컨트롤 포인트 그리기
     controlPoints.forEach((p, i) => {
       const x = getCanvasX(p.x);
       const y = getCanvasY(p.y);
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, 2 * Math.PI);
-      // 시작/종료점은 파란색으로 고정, 나머지는 빨간색
       ctx.fillStyle =
         i === 0 || i === controlPoints.length - 1 ? "blue" : "red";
       ctx.fill();
@@ -124,63 +147,91 @@ const DynamicBezierEditor: React.FC = () => {
     });
   }, [controlPoints]);
 
-  // 마우스 다운: control point 근처면 dragging, 아니라면 선분 근처면 새 점 추가
- const handleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
-   if (!canvasRef.current) return;
-   const rect = canvasRef.current.getBoundingClientRect();
-   const mouseX = e.clientX - rect.left;
-   const mouseY = e.clientY - rect.top;
-   const normalizedX = mouseX / canvasSize;
-   const normalizedY = mouseY / canvasSize;
+  // 마우스 다운: 드래그 시작 또는 새 포인트 추가
+  const handleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const normalizedX = mouseX / canvasSize;
+    const normalizedY = mouseY / canvasSize;
 
-   // Check if clicking near an existing control point (skip fixed endpoints)
-   for (let i = 1; i < controlPoints.length - 1; i++) {
-     const cp = controlPoints[i];
-     const cpX = getCanvasX(cp.x);
-     const cpY = getCanvasY(cp.y);
-     const dist = Math.hypot(mouseX - cpX, mouseY - cpY);
-     if (dist < 10) {
-       setDraggingIndex(i);
-       return;
-     }
-   }
+    // 기존 포인트 드래그 (시작점과 끝점 제외)
+    for (let i = 1; i < controlPoints.length - 1; i++) {
+      const cp = controlPoints[i];
+      const cpX = getCanvasX(cp.x);
+      const cpY = getCanvasY(cp.y);
+      if (Math.hypot(mouseX - cpX, mouseY - cpY) < 10) {
+        setDraggingIndex(i);
+        return;
+      }
+    }
 
-   // Sample the Bezier curve to find the closest point
-   const steps = 100;
-   let minDist = Infinity;
-   let bestT = 0;
-   let bestPoint: ControlPoint | null = null;
+    // 곡선 근처에 새 포인트 추가
+    const threshold = 10;
+    let minDist = Infinity;
+    let bestPoint: ControlPoint | null = null;
+    let insertionIndex = -1;
 
-   for (let i = 0; i <= steps; i++) {
-     const t = i / steps;
-     const pt = deCasteljau(t, controlPoints);
-     const x = getCanvasX(pt.x);
-     const y = getCanvasY(pt.y);
-     const dist = Math.hypot(x - mouseX, y - mouseY);
-     if (dist < minDist) {
-       minDist = dist;
-       bestT = t;
-       bestPoint = pt;
-     }
-   }
+    const steps = 100;
+    for (let seg = 0; seg < controlPoints.length - 1; seg++) {
+      const p0 =
+        seg === 0
+          ? {
+              x: 2 * controlPoints[0].x - controlPoints[1].x,
+              y: 2 * controlPoints[0].y - controlPoints[1].y,
+            }
+          : controlPoints[seg - 1];
+      const p1 = controlPoints[seg];
+      const p2 = controlPoints[seg + 1];
+      const p3 =
+        seg + 2 < controlPoints.length
+          ? controlPoints[seg + 2]
+          : {
+              x:
+                2 * controlPoints[controlPoints.length - 1].x -
+                controlPoints[controlPoints.length - 2].x,
+              y:
+                2 * controlPoints[controlPoints.length - 1].y -
+                controlPoints[controlPoints.length - 2].y,
+            };
 
-   // Add new control point if within threshold (e.g., 10 pixels)
-   const threshold = 10;
-   if (minDist < threshold && bestPoint) {
-     const n = controlPoints.length;
-     const insertionIndex = Math.min(
-       Math.max(Math.floor(bestT * (n - 1)) + 1, 1),
-       n - 1
-     );
-     setControlPoints((prev) => {
-       const newPoints = [...prev];
-       newPoints.splice(insertionIndex, 0, bestPoint);
-       return newPoints;
-     });
-     setDraggingIndex(insertionIndex);
-   }
- };
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x =
+          0.5 *
+          (2 * p1.x +
+            (-p0.x + p2.x) * t +
+            (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
+            (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
+        const y =
+          0.5 *
+          (2 * p1.y +
+            (-p0.y + p2.y) * t +
+            (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
+            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
+        const canvasX = getCanvasX(x);
+        const canvasY = getCanvasY(y);
+        const dist = Math.hypot(canvasX - mouseX, canvasY - mouseY);
+        if (dist < minDist) {
+          minDist = dist;
+          bestPoint = { x, y };
+          insertionIndex = seg + 1;
+        }
+      }
+    }
 
+    if (minDist < threshold && bestPoint) {
+      setControlPoints((prev) => {
+        const newPoints = [...prev];
+        newPoints.splice(insertionIndex, 0, bestPoint);
+        return newPoints;
+      });
+      setDraggingIndex(insertionIndex);
+    }
+  };
+
+  // 마우스 이동: 드래그 처리
   const handleMouseMove = (e: MouseEvent<HTMLCanvasElement>) => {
     if (draggingIndex === null || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -195,13 +246,14 @@ const DynamicBezierEditor: React.FC = () => {
     });
   };
 
+  // 마우스 업: 드래그 종료
   const handleMouseUp = () => {
     setDraggingIndex(null);
   };
 
   return (
     <div>
-      <h2>Dynamic Bezier Curve Editor</h2>
+      <h2>Dynamic Curve Editor (Catmull-Rom Spline)</h2>
       <canvas
         ref={canvasRef}
         width={canvasSize}
@@ -224,4 +276,4 @@ const DynamicBezierEditor: React.FC = () => {
   );
 };
 
-export default DynamicBezierEditor;
+export default DynamicCurveEditor;
