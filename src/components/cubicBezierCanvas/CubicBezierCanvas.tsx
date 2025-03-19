@@ -5,7 +5,12 @@ interface ControlPoint {
   y: number;
 }
 
-const DynamicCurveEditor: React.FC = () => {
+interface Props {
+  totalSteps: number;
+  onCurveDataChange: (data: { x: number; y: number }[]) => void;
+}
+
+const DynamicCurveEditor: React.FC<Props> = ({ totalSteps, onCurveDataChange }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasSize = 400;
   const minXGap = 0.05;
@@ -36,7 +41,6 @@ const DynamicCurveEditor: React.FC = () => {
     const B = py - y1;
     const C = x2 - x1;
     const D = y2 - y1;
-
     const dot = A * C + B * D;
     const lenSq = C * C + D * D;
     const param = lenSq !== 0 ? dot / lenSq : -1;
@@ -71,7 +75,6 @@ const DynamicCurveEditor: React.FC = () => {
         ) < proximityThreshold
       );
     }
-
     const steps = 100;
     for (let i = 0; i < controlPoints.length - 1; i++) {
       const p0 =
@@ -237,6 +240,12 @@ const DynamicCurveEditor: React.FC = () => {
     });
   }, [controlPoints]);
 
+  // controlPoints나 totalSteps 변경 시 계산된 곡선 데이터를 부모로 전달
+  useEffect(() => {
+    const data = exportCurveData();
+    onCurveDataChange(data);
+  }, [controlPoints, totalSteps]);
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
     const mouseX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
@@ -290,7 +299,7 @@ const DynamicCurveEditor: React.FC = () => {
 
   const handleMouseUp = () => setDraggingIndex(null);
 
-  // 스플라인 포인트 계산 시 clamp 적용
+  // 스플라인 포인트 계산 함수
   const getCatmullRomPoint = (
     t: number,
     p0: ControlPoint,
@@ -317,17 +326,17 @@ const DynamicCurveEditor: React.FC = () => {
     return { x, y };
   };
 
-  const exportCurveData = (totalStep: number) => {
+  // totalSteps를 사용하여 곡선 데이터를 계산
+  const exportCurveData = () => {
     if (controlPoints.length < 2) {
       console.error("At least 2 control points are required.");
       return [];
     }
-
     const curveData: { x: number; y: number }[] = [];
-    const steps = totalStep - 1;
+    const steps = totalSteps - 1;
 
     for (let i = 0; i <= steps; i++) {
-      const tGlobal = i / steps; // 0부터 1까지
+      const tGlobal = i / steps;
       const segmentCount = controlPoints.length - 1;
       const segmentLength = 1 / segmentCount;
       let segmentIndex = Math.min(
@@ -360,14 +369,12 @@ const DynamicCurveEditor: React.FC = () => {
       const point = getCatmullRomPoint(tLocal, p0, p1, p2, p3);
       curveData.push({ x: point.x, y: point.y });
     }
-
     return curveData;
   };
 
   const handleExportCurve = () => {
     try {
-      const frameCount = 4;
-      const data = exportCurveData(frameCount);
+      const data = exportCurveData();
       if (!data || data.length === 0) {
         throw new Error("No curve data generated.");
       }

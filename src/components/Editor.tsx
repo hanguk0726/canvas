@@ -25,7 +25,6 @@ const Editor = ({ image, onClose }: { image: string, onClose: () => void }) => {
             <div className="min-h-screen w-full flex justify-center items-center bg-white">
                 <div className='max-w-[700px] aspect-square'>
                     {/* <Canvas imageSrc={image} /> */}
-					<CubicBezierCanvas />
                 </div>
             </div>
         </div>
