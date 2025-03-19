@@ -231,7 +231,6 @@ const DynamicCurveEditor: React.FC = () => {
     const mouseX = (e.clientX - rect.left) / canvasSize;
     const mouseY = 1 - (e.clientY - rect.top) / canvasSize;
 
-    // 기존 컨트롤 포인트 드래깅 체크
     for (let i = 1; i < controlPoints.length - 1; i++) {
       const cp = controlPoints[i];
       if (Math.hypot(mouseX - cp.x, mouseY - cp.y) < 0.025) {
@@ -240,7 +239,6 @@ const DynamicCurveEditor: React.FC = () => {
       }
     }
 
-    // 곡선에 근접한 경우 새 포인트 추가 및 즉시 드래그 시작
     if (isPointNearCurve(mouseX, mouseY)) {
       setControlPoints((prev) => {
         const newPoint = { x: mouseX, y: mouseY };
@@ -253,7 +251,7 @@ const DynamicCurveEditor: React.FC = () => {
         const newIndex = sortedPoints.findIndex(
           (p) => p.x === newPoint.x && p.y === newPoint.y
         );
-        setDraggingIndex(newIndex); // 새 포인트의 정렬된 인덱스를 즉시 설정
+        setDraggingIndex(newIndex);
         return sortedPoints;
       });
     }
@@ -283,6 +281,104 @@ const DynamicCurveEditor: React.FC = () => {
 
   const handleMouseUp = () => setDraggingIndex(null);
 
+  const getCatmullRomPoint = (
+    t: number,
+    p0: ControlPoint,
+    p1: ControlPoint,
+    p2: ControlPoint,
+    p3: ControlPoint
+  ) => {
+    const x =
+      0.5 *
+      (2 * p1.x +
+        (-p0.x + p2.x) * t +
+        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
+        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
+    const y =
+      0.5 *
+      (2 * p1.y +
+        (-p0.y + p2.y) * t +
+        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
+        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
+    return { x, y };
+  };
+
+  const exportCurveData = (frameCount: number) => {
+    if (controlPoints.length < 2) {
+      console.error("At least 2 control points are required.");
+      return [];
+    }
+
+    const curveData: { x: number; y: number }[] = [];
+    const steps = frameCount - 1;
+
+    for (let i = 0; i <= steps; i++) {
+      const tGlobal = i / steps; // 0부터 1까지
+      const segmentCount = controlPoints.length - 1;
+      const segmentLength = 1 / segmentCount;
+      let segmentIndex = Math.min(
+        Math.floor(tGlobal * segmentCount),
+        segmentCount - 1
+      ); // segmentIndex가 segmentCount-1을 넘지 않도록 제한
+      const tLocal = (tGlobal - segmentIndex * segmentLength) / segmentLength;
+
+      // 세그먼트별 포인트 설정
+      const p0 =
+        segmentIndex === 0
+          ? {
+              x: 2 * controlPoints[0].x - controlPoints[1].x,
+              y: 2 * controlPoints[0].y - controlPoints[1].y,
+            }
+          : controlPoints[segmentIndex - 1];
+      const p1 = controlPoints[segmentIndex];
+      const p2 = controlPoints[segmentIndex + 1];
+      const p3 =
+        segmentIndex + 2 < controlPoints.length
+          ? controlPoints[segmentIndex + 2]
+          : {
+              x:
+                2 * controlPoints[controlPoints.length - 1].x -
+                controlPoints[controlPoints.length - 2].x,
+              y:
+                2 * controlPoints[controlPoints.length - 1].y -
+                controlPoints[controlPoints.length - 2].y,
+            };
+
+      const point = getCatmullRomPoint(tLocal, p0, p1, p2, p3);
+      curveData.push({ x: point.x, y: point.y });
+    }
+
+    return curveData;
+  };
+
+  const handleExportCurve = () => {
+    try {
+      const frameCount = 4;
+      const data = exportCurveData(frameCount);
+      if (!data || data.length === 0) {
+        throw new Error("No curve data generated.");
+      }
+
+      console.log("Curve Data:", data);
+
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "curve_data.json";
+
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("파일 다운로드에 실패했습니다. 콘솔을 확인하세요.");
+    }
+  };
+
   return (
     <div>
       <h2>Dynamic Curve Editor</h2>
@@ -296,6 +392,7 @@ const DynamicCurveEditor: React.FC = () => {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       />
+      <button onClick={handleExportCurve}>Export Curve Data</button>
     </div>
   );
 };
