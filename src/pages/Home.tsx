@@ -7,8 +7,6 @@ interface DynamicCurveEditorRef {
 }
 
 const Home = () => {
-  const [totalSteps, setTotalSteps] = useState(10);
-  const [curveData, setCurveData] = useState<{ x: number; y: number }[]>([]);
   const [controlPoints, setControlPoints] = useState<
     { x: number; y: number }[]
   >([]);
@@ -38,8 +36,6 @@ const Home = () => {
         {/* Left Section: Canvas (고정 크기) */}
         <div className="w-[400px] h-[450px] flex-shrink-0 flex items-start justify-center">
           <DynamicCurveEditor
-            totalSteps={totalSteps}
-            onCurveDataChange={setCurveData}
             onControlPointsChange={setControlPoints}
             ref={editorRef}
           />

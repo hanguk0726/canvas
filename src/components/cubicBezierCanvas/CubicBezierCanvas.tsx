@@ -12,8 +12,6 @@ interface ControlPoint {
 }
 
 interface Props {
-  totalSteps: number;
-  onCurveDataChange: (data: { x: number; y: number }[]) => void;
   onControlPointsChange: (points: ControlPoint[]) => void;
 }
 
@@ -23,7 +21,7 @@ interface DynamicCurveEditorRef {
 }
 
 const DynamicCurveEditor = forwardRef<DynamicCurveEditorRef, Props>(
-  ({ totalSteps, onCurveDataChange, onControlPointsChange }, ref) => {
+  ({ onControlPointsChange }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const canvasSize = 400;
     const minXGap = 0.05;
@@ -251,10 +249,8 @@ const DynamicCurveEditor = forwardRef<DynamicCurveEditorRef, Props>(
     }, [controlPoints]);
 
     useEffect(() => {
-      const data = exportCurveData();
-      onCurveDataChange(data);
       onControlPointsChange(controlPoints);
-    }, [controlPoints, totalSteps]);
+    }, [controlPoints]);
 
     const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
       const rect = canvasRef.current!.getBoundingClientRect();
@@ -344,51 +340,6 @@ const DynamicCurveEditor = forwardRef<DynamicCurveEditorRef, Props>(
       return { x, y };
     };
 
-    const exportCurveData = () => {
-      if (controlPoints.length < 2) {
-        console.error("At least 2 control points are required.");
-        return [];
-      }
-      const curveData: { x: number; y: number }[] = [];
-      const steps = totalSteps - 1;
-
-      for (let i = 0; i <= steps; i++) {
-        const tGlobal = i / steps;
-        const segmentCount = controlPoints.length - 1;
-        const segmentLength = 1 / segmentCount;
-        let segmentIndex = Math.min(
-          Math.floor(tGlobal * segmentCount),
-          segmentCount - 1
-        );
-        const tLocal = (tGlobal - segmentIndex * segmentLength) / segmentLength;
-
-        const p0 =
-          segmentIndex === 0
-            ? {
-                x: 2 * controlPoints[0].x - controlPoints[1].x,
-                y: 2 * controlPoints[0].y - controlPoints[1].y,
-              }
-            : controlPoints[segmentIndex - 1];
-        const p1 = controlPoints[segmentIndex];
-        const p2 = controlPoints[segmentIndex + 1];
-        const p3 =
-          segmentIndex + 2 < controlPoints.length
-            ? controlPoints[segmentIndex + 2]
-            : {
-                x:
-                  2 * controlPoints[controlPoints.length - 1].x -
-                  controlPoints[controlPoints.length - 2].x,
-                y:
-                  2 * controlPoints[controlPoints.length - 1].y -
-                  controlPoints[controlPoints.length - 2].y,
-              };
-
-        const point = getCatmullRomPoint(tLocal, p0, p1, p2, p3);
-        curveData.push({ x: point.x, y: point.y });
-      }
-      return curveData;
-    };
-
     const getYAtTime = (
       targetX: number,
       maxX: number,
@@ -451,7 +402,6 @@ const DynamicCurveEditor = forwardRef<DynamicCurveEditorRef, Props>(
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         />
-        <button onClick={() => exportCurveData()}>Export Curve Data</button>
       </div>
     );
   }
