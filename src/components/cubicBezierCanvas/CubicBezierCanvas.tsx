@@ -125,58 +125,61 @@ const DynamicBezierEditor: React.FC = () => {
   }, [controlPoints]);
 
   // 마우스 다운: control point 근처면 dragging, 아니라면 선분 근처면 새 점 추가
-  const handleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const normalizedX = mouseX / canvasSize;
-    const normalizedY = mouseY / canvasSize;
+ const handleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
+   if (!canvasRef.current) return;
+   const rect = canvasRef.current.getBoundingClientRect();
+   const mouseX = e.clientX - rect.left;
+   const mouseY = e.clientY - rect.top;
+   const normalizedX = mouseX / canvasSize;
+   const normalizedY = mouseY / canvasSize;
 
-    // 기존 control point들 중 가까운게 있으면 (끝점은 고정시켜 드래그 불가)
-    for (let i = 1; i < controlPoints.length - 1; i++) {
-      const cp = controlPoints[i];
-      const cpX = getCanvasX(cp.x);
-      const cpY = getCanvasY(cp.y);
-      const dist = Math.hypot(mouseX - cpX, mouseY - cpY);
-      if (dist < 10) {
-        setDraggingIndex(i);
-        return;
-      }
-    }
-    // 없다면 각 선분에 대해 클릭 위치와의 거리를 체크
-    const threshold = 8;
-    let closestIndex: number | null = null;
-    let minDist = Infinity;
-    for (let i = 0; i < controlPoints.length - 1; i++) {
-      const p1 = controlPoints[i];
-      const p2 = controlPoints[i + 1];
-      const dist = distanceToSegment(
-        mouseX,
-        mouseY,
-        getCanvasX(p1.x),
-        getCanvasY(p1.y),
-        getCanvasX(p2.x),
-        getCanvasY(p2.y)
-      );
-      if (dist < minDist) {
-        minDist = dist;
-        closestIndex = i;
-      }
-    }
-    // 선분과의 거리가 임계값 이내이면 새 control point를 해당 선분 사이에 추가
-    if (minDist < threshold && closestIndex !== null) {
-      const newPoint: ControlPoint = { x: normalizedX, y: normalizedY };
-      // 새로운 점은 기존 점 사이에 삽입 (인덱스 closestIndex + 1)
-      setControlPoints((prev) => {
-        const newPoints = [...prev];
-        newPoints.splice(closestIndex! + 1, 0, newPoint);
-        return newPoints;
-      });
-      // 추가한 새 control point를 바로 드래그할 수 있도록
-      setDraggingIndex(closestIndex! + 1);
-    }
-  };
+   // Check if clicking near an existing control point (skip fixed endpoints)
+   for (let i = 1; i < controlPoints.length - 1; i++) {
+     const cp = controlPoints[i];
+     const cpX = getCanvasX(cp.x);
+     const cpY = getCanvasY(cp.y);
+     const dist = Math.hypot(mouseX - cpX, mouseY - cpY);
+     if (dist < 10) {
+       setDraggingIndex(i);
+       return;
+     }
+   }
+
+   // Sample the Bezier curve to find the closest point
+   const steps = 100;
+   let minDist = Infinity;
+   let bestT = 0;
+   let bestPoint: ControlPoint | null = null;
+
+   for (let i = 0; i <= steps; i++) {
+     const t = i / steps;
+     const pt = deCasteljau(t, controlPoints);
+     const x = getCanvasX(pt.x);
+     const y = getCanvasY(pt.y);
+     const dist = Math.hypot(x - mouseX, y - mouseY);
+     if (dist < minDist) {
+       minDist = dist;
+       bestT = t;
+       bestPoint = pt;
+     }
+   }
+
+   // Add new control point if within threshold (e.g., 10 pixels)
+   const threshold = 10;
+   if (minDist < threshold && bestPoint) {
+     const n = controlPoints.length;
+     const insertionIndex = Math.min(
+       Math.max(Math.floor(bestT * (n - 1)) + 1, 1),
+       n - 1
+     );
+     setControlPoints((prev) => {
+       const newPoints = [...prev];
+       newPoints.splice(insertionIndex, 0, bestPoint);
+       return newPoints;
+     });
+     setDraggingIndex(insertionIndex);
+   }
+ };
 
   const handleMouseMove = (e: MouseEvent<HTMLCanvasElement>) => {
     if (draggingIndex === null || !canvasRef.current) return;
