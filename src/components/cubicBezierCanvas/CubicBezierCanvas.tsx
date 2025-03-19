@@ -1,24 +1,119 @@
 import React, { useState, useRef, useEffect } from "react";
 
 interface ControlPoint {
-  x: number; // 0 ~ 1 사이
-  y: number; // 0 ~ 1 사이
+  x: number;
+  y: number;
 }
 
 const DynamicCurveEditor: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasSize = 400;
   const minXGap = 0.05;
+  const proximityThreshold = 0.05; // 곡선 근접 임계값 (0~1 사이)
 
   const [controlPoints, setControlPoints] = useState<ControlPoint[]>([
-    { x: 0, y: 0 }, // 시작점 (고정) - now bottom-left
-    { x: 1, y: 1 }, // 끝점 (고정) - now top-right
+    { x: 0, y: 0 },
+    { x: 1, y: 1 },
   ]);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   const getCanvasX = (x: number) => x * canvasSize;
-  // Flip y-coordinate: 0 at bottom, 1 at top
   const getCanvasY = (y: number) => (1 - y) * canvasSize;
+
+  // 점과 직선 세그먼트 사이의 거리 계산
+  const pointToLineDistance = (
+    px: number,
+    py: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number
+  ) => {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    const param = lenSq !== 0 ? dot / lenSq : -1;
+
+    let xx, yy;
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+
+    const dx = px - xx;
+    const dy = py - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // 점이 곡선에 근접한지 확인
+  const isPointNearCurve = (x: number, y: number) => {
+    if (controlPoints.length === 2) {
+      return (
+        pointToLineDistance(
+          x,
+          y,
+          controlPoints[0].x,
+          controlPoints[0].y,
+          controlPoints[1].x,
+          controlPoints[1].y
+        ) < proximityThreshold
+      );
+    }
+
+    // Catmull-Rom 곡선의 경우, 충분히 작은 간격으로 점을 샘플링하여 근접성 체크
+    const steps = 100;
+    for (let i = 0; i < controlPoints.length - 1; i++) {
+      const p0 =
+        i === 0
+          ? {
+              x: 2 * controlPoints[0].x - controlPoints[1].x,
+              y: 2 * controlPoints[0].y - controlPoints[1].y,
+            }
+          : controlPoints[i - 1];
+      const p1 = controlPoints[i];
+      const p2 = controlPoints[i + 1];
+      const p3 =
+        i + 2 < controlPoints.length
+          ? controlPoints[i + 2]
+          : {
+              x:
+                2 * controlPoints[controlPoints.length - 1].x -
+                controlPoints[controlPoints.length - 2].x,
+              y:
+                2 * controlPoints[controlPoints.length - 1].y -
+                controlPoints[controlPoints.length - 2].y,
+            };
+
+      for (let t = 0; t <= 1; t += 1 / steps) {
+        const xCurve =
+          0.5 *
+          (2 * p1.x +
+            (-p0.x + p2.x) * t +
+            (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
+            (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
+        const yCurve =
+          0.5 *
+          (2 * p1.y +
+            (-p0.y + p2.y) * t +
+            (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
+            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
+
+        const distance = Math.hypot(x - xCurve, y - yCurve);
+        if (distance < proximityThreshold) return true;
+      }
+    }
+    return false;
+  };
 
   const drawCatmullRomSegment = (
     ctx: CanvasRenderingContext2D,
@@ -137,9 +232,9 @@ const DynamicCurveEditor: React.FC = () => {
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
     const mouseX = (e.clientX - rect.left) / canvasSize;
-    // Flip y-coordinate for mouse input
     const mouseY = 1 - (e.clientY - rect.top) / canvasSize;
 
+    // 기존 컨트롤 포인트 드래깅 체크
     for (let i = 1; i < controlPoints.length - 1; i++) {
       const cp = controlPoints[i];
       if (Math.hypot(mouseX - cp.x, mouseY - cp.y) < 0.025) {
@@ -148,19 +243,25 @@ const DynamicCurveEditor: React.FC = () => {
       }
     }
 
-    setControlPoints((prev) => [
-      ...prev.slice(0, -1),
-      { x: mouseX, y: mouseY },
-      prev[prev.length - 1],
-    ]);
-    setDraggingIndex(controlPoints.length - 1);
+    // 곡선에 근접한 경우에만 새 포인트 추가
+    if (isPointNearCurve(mouseX, mouseY)) {
+      setControlPoints((prev) => {
+        const newPoints = [
+          ...prev.slice(0, -1),
+          { x: mouseX, y: mouseY },
+          prev[prev.length - 1],
+        ];
+        // x 기준으로 정렬
+        return newPoints.sort((a, b) => a.x - b.x);
+      });
+      setDraggingIndex(controlPoints.length - 1);
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingIndex === null || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     let newX = (e.clientX - rect.left) / canvasSize;
-    // Flip y-coordinate for mouse input
     const newY = Math.min(
       1,
       Math.max(0, 1 - (e.clientY - rect.top) / canvasSize)
