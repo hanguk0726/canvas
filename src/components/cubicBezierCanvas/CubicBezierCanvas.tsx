@@ -9,7 +9,7 @@ const DynamicCurveEditor: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasSize = 400;
   const minXGap = 0.05;
-  const proximityThreshold = 0.05; // 곡선 근접 임계값 (0~1 사이)
+  const proximityThreshold = 0.05;
 
   const [controlPoints, setControlPoints] = useState<ControlPoint[]>([
     { x: 0, y: 0 },
@@ -20,7 +20,6 @@ const DynamicCurveEditor: React.FC = () => {
   const getCanvasX = (x: number) => x * canvasSize;
   const getCanvasY = (y: number) => (1 - y) * canvasSize;
 
-  // 점과 직선 세그먼트 사이의 거리 계산
   const pointToLineDistance = (
     px: number,
     py: number,
@@ -55,7 +54,6 @@ const DynamicCurveEditor: React.FC = () => {
     return Math.sqrt(dx * dx + dy * dy);
   };
 
-  // 점이 곡선에 근접한지 확인
   const isPointNearCurve = (x: number, y: number) => {
     if (controlPoints.length === 2) {
       return (
@@ -70,7 +68,6 @@ const DynamicCurveEditor: React.FC = () => {
       );
     }
 
-    // Catmull-Rom 곡선의 경우, 충분히 작은 간격으로 점을 샘플링하여 근접성 체크
     const steps = 100;
     for (let i = 0; i < controlPoints.length - 1; i++) {
       const p0 =
@@ -243,18 +240,22 @@ const DynamicCurveEditor: React.FC = () => {
       }
     }
 
-    // 곡선에 근접한 경우에만 새 포인트 추가
+    // 곡선에 근접한 경우 새 포인트 추가 및 즉시 드래그 시작
     if (isPointNearCurve(mouseX, mouseY)) {
       setControlPoints((prev) => {
+        const newPoint = { x: mouseX, y: mouseY };
         const newPoints = [
           ...prev.slice(0, -1),
-          { x: mouseX, y: mouseY },
+          newPoint,
           prev[prev.length - 1],
         ];
-        // x 기준으로 정렬
-        return newPoints.sort((a, b) => a.x - b.x);
+        const sortedPoints = newPoints.sort((a, b) => a.x - b.x);
+        const newIndex = sortedPoints.findIndex(
+          (p) => p.x === newPoint.x && p.y === newPoint.y
+        );
+        setDraggingIndex(newIndex); // 새 포인트의 정렬된 인덱스를 즉시 설정
+        return sortedPoints;
       });
-      setDraggingIndex(controlPoints.length - 1);
     }
   };
 
