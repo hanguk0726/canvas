@@ -246,37 +246,49 @@ const DynamicCurveEditor: React.FC<Props> = ({ totalSteps, onCurveDataChange }) 
     onCurveDataChange(data);
   }, [controlPoints, totalSteps]);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const mouseX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
-    const mouseY = clamp(1 - (e.clientY - rect.top) / canvasSize, 0, 1);
+ const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+   const rect = canvasRef.current!.getBoundingClientRect();
+   const mouseX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
+   const mouseY = clamp(1 - (e.clientY - rect.top) / canvasSize, 0, 1);
 
-    // 내부 control point에 대한 드래그 검사 (엔드포인트는 드래그 불가)
-    for (let i = 1; i < controlPoints.length - 1; i++) {
-      const cp = controlPoints[i];
-      if (Math.hypot(mouseX - cp.x, mouseY - cp.y) < 0.025) {
-        setDraggingIndex(i);
-        return;
-      }
-    }
+   // 내부 control point에 대한 드래그 검사 (엔드포인트는 드래그 불가)
+   for (let i = 1; i < controlPoints.length - 1; i++) {
+     const cp = controlPoints[i];
+     if (Math.hypot(mouseX - cp.x, mouseY - cp.y) < 0.025) {
+       setDraggingIndex(i);
+       return;
+     }
+   }
 
-    if (isPointNearCurve(mouseX, mouseY)) {
-      setControlPoints((prev) => {
-        const newPoint = { x: mouseX, y: mouseY };
-        const newPoints = [
-          ...prev.slice(0, -1),
-          newPoint,
-          prev[prev.length - 1],
-        ];
-        const sortedPoints = newPoints.sort((a, b) => a.x - b.x);
-        const newIndex = sortedPoints.findIndex(
-          (p) => p.x === newPoint.x && p.y === newPoint.y
-        );
-        setDraggingIndex(newIndex);
-        return sortedPoints;
-      });
-    }
-  };
+   if (isPointNearCurve(mouseX, mouseY)) {
+     setControlPoints((prev) => {
+       const newPoint = { x: mouseX, y: mouseY };
+       const newPoints = [
+         ...prev.slice(0, -1),
+         newPoint,
+         prev[prev.length - 1],
+       ];
+       const sortedPoints = newPoints.sort((a, b) => a.x - b.x);
+
+       // 새 포인트가 들어갈 위치 찾기
+       const newIndex = sortedPoints.findIndex(
+         (p) => p.x === newPoint.x && p.y === newPoint.y
+       );
+
+       // 좌우 인접 포인트 간격 검사
+       if (newIndex > 0 && newIndex < sortedPoints.length - 1) {
+         const leftX = sortedPoints[newIndex - 1].x;
+         const rightX = sortedPoints[newIndex + 1].x;
+         if (newPoint.x - leftX < minXGap || rightX - newPoint.x < minXGap) {
+           return prev; // 추가하지 않고 기존 상태 유지
+         }
+       }
+
+       setDraggingIndex(newIndex);
+       return sortedPoints;
+     });
+   }
+ };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingIndex === null || !canvasRef.current) return;
