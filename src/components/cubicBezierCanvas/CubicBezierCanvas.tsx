@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useImperativeHandle,
+  forwardRef,
+} from "react";
 
 interface ControlPoint {
   x: number;
@@ -8,135 +14,317 @@ interface ControlPoint {
 interface Props {
   totalSteps: number;
   onCurveDataChange: (data: { x: number; y: number }[]) => void;
+  onControlPointsChange: (points: ControlPoint[]) => void;
 }
 
-const DynamicCurveEditor: React.FC<Props> = ({
-  totalSteps,
-  onCurveDataChange,
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const canvasSize = 400;
-  const minXGap = 0.05;
-  const proximityThreshold = 0.05;
+// ref로 노출할 메서드의 타입 정의
+interface DynamicCurveEditorRef {
+  getYAtTime: (targetX: number, maxX: number, maxY: number) => number;
+}
 
-  const [controlPoints, setControlPoints] = useState<ControlPoint[]>([
-    { x: 0, y: 0 },
-    { x: 1, y: 1 },
-  ]);
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+const DynamicCurveEditor = forwardRef<DynamicCurveEditorRef, Props>(
+  ({ totalSteps, onCurveDataChange, onControlPointsChange }, ref) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const canvasSize = 400;
+    const minXGap = 0.05;
+    const proximityThreshold = 0.05;
 
-  // value를 min과 max 사이로 제한하는 clamp 함수
-  const clamp = (value: number, min: number, max: number) =>
-    Math.min(max, Math.max(min, value));
+    const [controlPoints, setControlPoints] = useState<ControlPoint[]>([
+      { x: 0, y: 0 },
+      { x: 1, y: 1 },
+    ]);
+    const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
-  const getCanvasX = (x: number) => clamp(x, 0, 1) * canvasSize;
-  const getCanvasY = (y: number) => (1 - clamp(y, 0, 1)) * canvasSize;
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(max, Math.max(min, value));
 
-  const pointToLineDistance = (
-    px: number,
-    py: number,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number
-  ) => {
-    const A = px - x1;
-    const B = py - y1;
-    const C = x2 - x1;
-    const D = y2 - y1;
-    const dot = A * C + B * D;
-    const lenSq = C * C + D * D;
-    const param = lenSq !== 0 ? dot / lenSq : -1;
+    const getCanvasX = (x: number) => clamp(x, 0, 1) * canvasSize;
+    const getCanvasY = (y: number) => (1 - clamp(y, 0, 1)) * canvasSize;
 
-    let xx, yy;
-    if (param < 0) {
-      xx = x1;
-      yy = y1;
-    } else if (param > 1) {
-      xx = x2;
-      yy = y2;
-    } else {
-      xx = x1 + param * C;
-      yy = y1 + param * D;
-    }
+    const pointToLineDistance = (
+      px: number,
+      py: number,
+      x1: number,
+      y1: number,
+      x2: number,
+      y2: number
+    ) => {
+      const A = px - x1;
+      const B = py - y1;
+      const C = x2 - x1;
+      const D = y2 - y1;
+      const dot = A * C + B * D;
+      const lenSq = C * C + D * D;
+      const param = lenSq !== 0 ? dot / lenSq : -1;
 
-    const dx = px - xx;
-    const dy = py - yy;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
+      let xx, yy;
+      if (param < 0) {
+        xx = x1;
+        yy = y1;
+      } else if (param > 1) {
+        xx = x2;
+        yy = y2;
+      } else {
+        xx = x1 + param * C;
+        yy = y1 + param * D;
+      }
 
-  const isPointNearCurve = (x: number, y: number) => {
-    if (controlPoints.length === 2) {
-      return (
-        pointToLineDistance(
-          x,
-          y,
-          controlPoints[0].x,
-          controlPoints[0].y,
-          controlPoints[1].x,
-          controlPoints[1].y
-        ) < proximityThreshold
-      );
-    }
-    const steps = 100;
-    for (let i = 0; i < controlPoints.length - 1; i++) {
-      const p0 =
-        i === 0
-          ? {
-              x: 2 * controlPoints[0].x - controlPoints[1].x,
-              y: 2 * controlPoints[0].y - controlPoints[1].y,
-            }
-          : controlPoints[i - 1];
-      const p1 = controlPoints[i];
-      const p2 = controlPoints[i + 1];
-      const p3 =
-        i + 2 < controlPoints.length
-          ? controlPoints[i + 2]
-          : {
-              x:
-                2 * controlPoints[controlPoints.length - 1].x -
-                controlPoints[controlPoints.length - 2].x,
-              y:
-                2 * controlPoints[controlPoints.length - 1].y -
-                controlPoints[controlPoints.length - 2].y,
-            };
+      const dx = px - xx;
+      const dy = py - yy;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
 
-      for (let t = 0; t <= 1; t += 1 / steps) {
-        let xCurve =
+    const isPointNearCurve = (x: number, y: number) => {
+      if (controlPoints.length === 2) {
+        return (
+          pointToLineDistance(
+            x,
+            y,
+            controlPoints[0].x,
+            controlPoints[0].y,
+            controlPoints[1].x,
+            controlPoints[1].y
+          ) < proximityThreshold
+        );
+      }
+      const steps = 100;
+      for (let i = 0; i < controlPoints.length - 1; i++) {
+        const p0 =
+          i === 0
+            ? {
+                x: 2 * controlPoints[0].x - controlPoints[1].x,
+                y: 2 * controlPoints[0].y - controlPoints[1].y,
+              }
+            : controlPoints[i - 1];
+        const p1 = controlPoints[i];
+        const p2 = controlPoints[i + 1];
+        const p3 =
+          i + 2 < controlPoints.length
+            ? controlPoints[i + 2]
+            : {
+                x:
+                  2 * controlPoints[controlPoints.length - 1].x -
+                  controlPoints[controlPoints.length - 2].x,
+                y:
+                  2 * controlPoints[controlPoints.length - 1].y -
+                  controlPoints[controlPoints.length - 2].y,
+              };
+
+        for (let t = 0; t <= 1; t += 1 / steps) {
+          let xCurve =
+            0.5 *
+            (2 * p1.x +
+              (-p0.x + p2.x) * t +
+              (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
+              (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
+          let yCurve =
+            0.5 *
+            (2 * p1.y +
+              (-p0.y + p2.y) * t +
+              (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
+              (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
+          xCurve = clamp(xCurve, 0, 1);
+          yCurve = clamp(yCurve, 0, 1);
+
+          const distance = Math.hypot(x - xCurve, y - yCurve);
+          if (distance < proximityThreshold) return true;
+        }
+      }
+      return false;
+    };
+
+    const drawCatmullRomSegment = (
+      ctx: CanvasRenderingContext2D,
+      p0: ControlPoint,
+      p1: ControlPoint,
+      p2: ControlPoint,
+      p3: ControlPoint
+    ) => {
+      const steps = 100;
+      ctx.beginPath();
+      let prevX = -1;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        let x =
           0.5 *
           (2 * p1.x +
             (-p0.x + p2.x) * t +
             (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
             (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
-        let yCurve =
+        let y =
           0.5 *
           (2 * p1.y +
             (-p0.y + p2.y) * t +
             (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
             (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
-        // clamp하여 캔버스 범위 내로 제한
-        xCurve = clamp(xCurve, 0, 1);
-        yCurve = clamp(yCurve, 0, 1);
 
-        const distance = Math.hypot(x - xCurve, y - yCurve);
-        if (distance < proximityThreshold) return true;
+        x = clamp(x, 0, 1);
+        y = clamp(y, 0, 1);
+
+        if (prevX >= 0 && x < prevX) x = prevX;
+        prevX = x;
+
+        const canvasX = getCanvasX(x);
+        const canvasY = getCanvasY(y);
+        if (i === 0) ctx.moveTo(canvasX, canvasY);
+        else ctx.lineTo(canvasX, canvasY);
       }
-    }
-    return false;
-  };
+      ctx.strokeStyle = "black";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    };
 
-  const drawCatmullRomSegment = (
-    ctx: CanvasRenderingContext2D,
-    p0: ControlPoint,
-    p1: ControlPoint,
-    p2: ControlPoint,
-    p3: ControlPoint
-  ) => {
-    const steps = 100;
-    ctx.beginPath();
-    let prevX = -1;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
+    const drawCurve = (ctx: CanvasRenderingContext2D) => {
+      if (controlPoints.length < 2) return;
+
+      if (controlPoints.length === 2) {
+        ctx.beginPath();
+        ctx.moveTo(
+          getCanvasX(controlPoints[0].x),
+          getCanvasY(controlPoints[0].y)
+        );
+        ctx.lineTo(
+          getCanvasX(controlPoints[1].x),
+          getCanvasY(controlPoints[1].y)
+        );
+        ctx.stroke();
+      } else {
+        const pNeg1 = {
+          x: 2 * controlPoints[0].x - controlPoints[1].x,
+          y: 2 * controlPoints[0].y - controlPoints[1].y,
+        };
+        drawCatmullRomSegment(
+          ctx,
+          pNeg1,
+          controlPoints[0],
+          controlPoints[1],
+          controlPoints[2]
+        );
+
+        for (let i = 1; i < controlPoints.length - 2; i++) {
+          drawCatmullRomSegment(
+            ctx,
+            controlPoints[i - 1],
+            controlPoints[i],
+            controlPoints[i + 1],
+            controlPoints[i + 2]
+          );
+        }
+
+        const pNPlus1 = {
+          x:
+            2 * controlPoints[controlPoints.length - 1].x -
+            controlPoints[controlPoints.length - 2].x,
+          y:
+            2 * controlPoints[controlPoints.length - 1].y -
+            controlPoints[controlPoints.length - 2].y,
+        };
+        drawCatmullRomSegment(
+          ctx,
+          controlPoints[controlPoints.length - 3],
+          controlPoints[controlPoints.length - 2],
+          controlPoints[controlPoints.length - 1],
+          pNPlus1
+        );
+      }
+    };
+
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, canvasSize, canvasSize);
+      drawCurve(ctx);
+
+      controlPoints.forEach((p, i) => {
+        const x = getCanvasX(p.x);
+        const y = getCanvasY(p.y);
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, 2 * Math.PI);
+        ctx.fillStyle =
+          i === 0 || i === controlPoints.length - 1 ? "blue" : "red";
+        ctx.fill();
+        ctx.stroke();
+      });
+    }, [controlPoints]);
+
+    useEffect(() => {
+      const data = exportCurveData();
+      onCurveDataChange(data);
+      onControlPointsChange(controlPoints);
+    }, [controlPoints, totalSteps]);
+
+    const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const mouseX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
+      const mouseY = clamp(1 - (e.clientY - rect.top) / canvasSize, 0, 1);
+
+      for (let i = 1; i < controlPoints.length - 1; i++) {
+        const cp = controlPoints[i];
+        if (Math.hypot(mouseX - cp.x, mouseY - cp.y) < 0.025) {
+          setDraggingIndex(i);
+          return;
+        }
+      }
+
+      if (isPointNearCurve(mouseX, mouseY)) {
+        setControlPoints((prev) => {
+          const newPoint = { x: mouseX, y: mouseY };
+          const newPoints = [
+            ...prev.slice(0, -1),
+            newPoint,
+            prev[prev.length - 1],
+          ];
+          const sortedPoints = newPoints.sort((a, b) => a.x - b.x);
+
+          const newIndex = sortedPoints.findIndex(
+            (p) => p.x === newPoint.x && p.y === newPoint.y
+          );
+
+          if (newIndex > 0 && newIndex < sortedPoints.length - 1) {
+            const leftX = sortedPoints[newIndex - 1].x;
+            const rightX = sortedPoints[newIndex + 1].x;
+            if (newPoint.x - leftX < minXGap || rightX - newPoint.x < minXGap) {
+              return prev;
+            }
+          }
+
+          setDraggingIndex(newIndex);
+          return sortedPoints;
+        });
+      }
+    };
+
+    const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (draggingIndex === null || !canvasRef.current) return;
+      const rect = canvasRef.current.getBoundingClientRect();
+      let newX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
+      const newY = clamp(1 - (e.clientY - rect.top) / canvasSize, 0, 1);
+
+      if (draggingIndex > 0 && draggingIndex < controlPoints.length - 1) {
+        const leftX = controlPoints[draggingIndex - 1].x + minXGap;
+        const rightX = controlPoints[draggingIndex + 1].x - minXGap;
+        newX = clamp(newX, leftX, rightX);
+      }
+
+      setControlPoints((prev) => {
+        const newPoints = [...prev];
+        newPoints[draggingIndex] = { x: newX, y: newY };
+        return newPoints;
+      });
+    };
+
+    const handleMouseUp = () => setDraggingIndex(null);
+
+    const getCatmullRomPoint = (
+      t: number,
+      p0: ControlPoint,
+      p1: ControlPoint,
+      p2: ControlPoint,
+      p3: ControlPoint
+    ) => {
       let x =
         0.5 *
         (2 * p1.x +
@@ -150,215 +338,75 @@ const DynamicCurveEditor: React.FC<Props> = ({
           (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
           (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
 
-      // 계산된 스플라인 포인트를 캔버스 범위 내로 제한
       x = clamp(x, 0, 1);
       y = clamp(y, 0, 1);
 
-      if (prevX >= 0 && x < prevX) x = prevX;
-      prevX = x;
+      return { x, y };
+    };
 
-      const canvasX = getCanvasX(x);
-      const canvasY = getCanvasY(y);
-      if (i === 0) ctx.moveTo(canvasX, canvasY);
-      else ctx.lineTo(canvasX, canvasY);
-    }
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  };
+    const exportCurveData = () => {
+      if (controlPoints.length < 2) {
+        console.error("At least 2 control points are required.");
+        return [];
+      }
+      const curveData: { x: number; y: number }[] = [];
+      const steps = totalSteps - 1;
 
-  const drawCurve = (ctx: CanvasRenderingContext2D) => {
-    if (controlPoints.length < 2) return;
-
-    if (controlPoints.length === 2) {
-      ctx.beginPath();
-      ctx.moveTo(
-        getCanvasX(controlPoints[0].x),
-        getCanvasY(controlPoints[0].y)
-      );
-      ctx.lineTo(
-        getCanvasX(controlPoints[1].x),
-        getCanvasY(controlPoints[1].y)
-      );
-      ctx.stroke();
-    } else {
-      const pNeg1 = {
-        x: 2 * controlPoints[0].x - controlPoints[1].x,
-        y: 2 * controlPoints[0].y - controlPoints[1].y,
-      };
-      drawCatmullRomSegment(
-        ctx,
-        pNeg1,
-        controlPoints[0],
-        controlPoints[1],
-        controlPoints[2]
-      );
-
-      for (let i = 1; i < controlPoints.length - 2; i++) {
-        drawCatmullRomSegment(
-          ctx,
-          controlPoints[i - 1],
-          controlPoints[i],
-          controlPoints[i + 1],
-          controlPoints[i + 2]
+      for (let i = 0; i <= steps; i++) {
+        const tGlobal = i / steps;
+        const segmentCount = controlPoints.length - 1;
+        const segmentLength = 1 / segmentCount;
+        let segmentIndex = Math.min(
+          Math.floor(tGlobal * segmentCount),
+          segmentCount - 1
         );
+        const tLocal = (tGlobal - segmentIndex * segmentLength) / segmentLength;
+
+        const p0 =
+          segmentIndex === 0
+            ? {
+                x: 2 * controlPoints[0].x - controlPoints[1].x,
+                y: 2 * controlPoints[0].y - controlPoints[1].y,
+              }
+            : controlPoints[segmentIndex - 1];
+        const p1 = controlPoints[segmentIndex];
+        const p2 = controlPoints[segmentIndex + 1];
+        const p3 =
+          segmentIndex + 2 < controlPoints.length
+            ? controlPoints[segmentIndex + 2]
+            : {
+                x:
+                  2 * controlPoints[controlPoints.length - 1].x -
+                  controlPoints[controlPoints.length - 2].x,
+                y:
+                  2 * controlPoints[controlPoints.length - 1].y -
+                  controlPoints[controlPoints.length - 2].y,
+              };
+
+        const point = getCatmullRomPoint(tLocal, p0, p1, p2, p3);
+        curveData.push({ x: point.x, y: point.y });
+      }
+      return curveData;
+    };
+
+    const getYAtTime = (
+      targetX: number,
+      maxX: number,
+      maxY: number
+    ): number => {
+      if (controlPoints.length < 2) {
+        throw new Error("At least 2 control points are required.");
       }
 
-      const pNPlus1 = {
-        x:
-          2 * controlPoints[controlPoints.length - 1].x -
-          controlPoints[controlPoints.length - 2].x,
-        y:
-          2 * controlPoints[controlPoints.length - 1].y -
-          controlPoints[controlPoints.length - 2].y,
-      };
-      drawCatmullRomSegment(
-        ctx,
-        controlPoints[controlPoints.length - 3],
-        controlPoints[controlPoints.length - 2],
-        controlPoints[controlPoints.length - 1],
-        pNPlus1
-      );
-    }
-  };
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvasSize, canvasSize);
-    drawCurve(ctx);
-
-    controlPoints.forEach((p, i) => {
-      const x = getCanvasX(p.x);
-      const y = getCanvasY(p.y);
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, 2 * Math.PI);
-      ctx.fillStyle =
-        i === 0 || i === controlPoints.length - 1 ? "blue" : "red";
-      ctx.fill();
-      ctx.stroke();
-    });
-  }, [controlPoints]);
-
-  // controlPoints나 totalSteps 변경 시 계산된 곡선 데이터를 부모로 전달
-  useEffect(() => {
-    const data = exportCurveData();
-    onCurveDataChange(data);
-  }, [controlPoints, totalSteps]);
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const mouseX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
-    const mouseY = clamp(1 - (e.clientY - rect.top) / canvasSize, 0, 1);
-
-    // 내부 control point에 대한 드래그 검사 (엔드포인트는 드래그 불가)
-    for (let i = 1; i < controlPoints.length - 1; i++) {
-      const cp = controlPoints[i];
-      if (Math.hypot(mouseX - cp.x, mouseY - cp.y) < 0.025) {
-        setDraggingIndex(i);
-        return;
-      }
-    }
-
-    if (isPointNearCurve(mouseX, mouseY)) {
-      setControlPoints((prev) => {
-        const newPoint = { x: mouseX, y: mouseY };
-        const newPoints = [
-          ...prev.slice(0, -1),
-          newPoint,
-          prev[prev.length - 1],
-        ];
-        const sortedPoints = newPoints.sort((a, b) => a.x - b.x);
-
-        // 새 포인트가 들어갈 위치 찾기
-        const newIndex = sortedPoints.findIndex(
-          (p) => p.x === newPoint.x && p.y === newPoint.y
-        );
-
-        // 좌우 인접 포인트 간격 검사
-        if (newIndex > 0 && newIndex < sortedPoints.length - 1) {
-          const leftX = sortedPoints[newIndex - 1].x;
-          const rightX = sortedPoints[newIndex + 1].x;
-          if (newPoint.x - leftX < minXGap || rightX - newPoint.x < minXGap) {
-            return prev; // 추가하지 않고 기존 상태 유지
-          }
-        }
-
-        setDraggingIndex(newIndex);
-        return sortedPoints;
-      });
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (draggingIndex === null || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    let newX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
-    const newY = clamp(1 - (e.clientY - rect.top) / canvasSize, 0, 1);
-
-    if (draggingIndex > 0 && draggingIndex < controlPoints.length - 1) {
-      const leftX = controlPoints[draggingIndex - 1].x + minXGap;
-      const rightX = controlPoints[draggingIndex + 1].x - minXGap;
-      newX = clamp(newX, leftX, rightX);
-    }
-
-    setControlPoints((prev) => {
-      const newPoints = [...prev];
-      newPoints[draggingIndex] = { x: newX, y: newY };
-      return newPoints;
-    });
-  };
-
-  const handleMouseUp = () => setDraggingIndex(null);
-
-  // 스플라인 포인트 계산 함수
-  const getCatmullRomPoint = (
-    t: number,
-    p0: ControlPoint,
-    p1: ControlPoint,
-    p2: ControlPoint,
-    p3: ControlPoint
-  ) => {
-    let x =
-      0.5 *
-      (2 * p1.x +
-        (-p0.x + p2.x) * t +
-        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
-        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
-    let y =
-      0.5 *
-      (2 * p1.y +
-        (-p0.y + p2.y) * t +
-        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
-        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
-
-    x = clamp(x, 0, 1);
-    y = clamp(y, 0, 1);
-
-    return { x, y };
-  };
-
-  // totalSteps를 사용하여 곡선 데이터를 계산
-  const exportCurveData = () => {
-    if (controlPoints.length < 2) {
-      console.error("At least 2 control points are required.");
-      return [];
-    }
-    const curveData: { x: number; y: number }[] = [];
-    const steps = totalSteps - 1;
-
-    for (let i = 0; i <= steps; i++) {
-      const tGlobal = i / steps;
+      const tNormalized = clamp(targetX / maxX, 0, 1);
       const segmentCount = controlPoints.length - 1;
       const segmentLength = 1 / segmentCount;
       let segmentIndex = Math.min(
-        Math.floor(tGlobal * segmentCount),
+        Math.floor(tNormalized * segmentCount),
         segmentCount - 1
       );
-      const tLocal = (tGlobal - segmentIndex * segmentLength) / segmentLength;
+      const tLocal =
+        (tNormalized - segmentIndex * segmentLength) / segmentLength;
 
       const p0 =
         segmentIndex === 0
@@ -381,100 +429,32 @@ const DynamicCurveEditor: React.FC<Props> = ({
                 controlPoints[controlPoints.length - 2].y,
             };
 
-      const point = getCatmullRomPoint(tLocal, p0, p1, p2, p3);
-      curveData.push({ x: point.x, y: point.y });
-    }
-    return curveData;
-  };
+      const { y } = getCatmullRomPoint(tLocal, p0, p1, p2, p3);
+      return y * maxY;
+    };
 
-  const handleExportCurve = () => {
-    try {
-      const data = exportCurveData();
-      if (!data || data.length === 0) {
-        throw new Error("No curve data generated.");
-      }
+    // ref로 getYAtTime 함수 노출
+    useImperativeHandle(ref, () => ({
+      getYAtTime,
+    }));
 
-      console.log("Curve Data:", data);
-
-      const jsonString = JSON.stringify(data, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "curve_data.json";
-
-      document.body.appendChild(link);
-      link.click();
-
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Export failed:", error);
-      alert("파일 다운로드에 실패했습니다. 콘솔을 확인하세요.");
-    }
-  };
-  const getYAtTime = (targetX: number, maxX: number, maxY: number): number => {
-    if (controlPoints.length < 2) {
-      throw new Error("At least 2 control points are required.");
-    }
-
-    // t 값을 [0, duration] 범위에서 [0, 1] 범위로 정규화
-    const tNormalized = clamp(targetX / maxX, 0, 1);
-
-    // x 값을 기준으로 해당하는 구간(segment) 찾기
-    const segmentCount = controlPoints.length - 1;
-    const segmentLength = 1 / segmentCount;
-    let segmentIndex = Math.min(
-      Math.floor(tNormalized * segmentCount),
-      segmentCount - 1
+    return (
+      <div>
+        <h2>Dynamic Curve Editor</h2>
+        <canvas
+          ref={canvasRef}
+          width={canvasSize}
+          height={canvasSize}
+          style={{ border: "1px solid black" }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        />
+        <button onClick={() => exportCurveData()}>Export Curve Data</button>
+      </div>
     );
-    const tLocal = (tNormalized - segmentIndex * segmentLength) / segmentLength;
-
-    // 현재 구간의 4개 포인트 선택
-    const p0 =
-      segmentIndex === 0
-        ? {
-            x: 2 * controlPoints[0].x - controlPoints[1].x,
-            y: 2 * controlPoints[0].y - controlPoints[1].y,
-          }
-        : controlPoints[segmentIndex - 1];
-    const p1 = controlPoints[segmentIndex];
-    const p2 = controlPoints[segmentIndex + 1];
-    const p3 =
-      segmentIndex + 2 < controlPoints.length
-        ? controlPoints[segmentIndex + 2]
-        : {
-            x:
-              2 * controlPoints[controlPoints.length - 1].x -
-              controlPoints[controlPoints.length - 2].x,
-            y:
-              2 * controlPoints[controlPoints.length - 1].y -
-              controlPoints[controlPoints.length - 2].y,
-          };
-
-    // Catmull-Rom 보간을 사용하여 y 값 계산
-    const { y } = getCatmullRomPoint(tLocal, p0, p1, p2, p3);
-
-    // 결과 y 값을 [0, delta] 범위로 변환하여 반환
-    return y * maxY;
-  };
-
-  return (
-    <div>
-      <h2>Dynamic Curve Editor</h2>
-      <canvas
-        ref={canvasRef}
-        width={canvasSize}
-        height={canvasSize}
-        style={{ border: "1px solid black" }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      />
-      <button onClick={handleExportCurve}>Export Curve Data</button>
-    </div>
-  );
-};
+  }
+);
 
 export default DynamicCurveEditor;
