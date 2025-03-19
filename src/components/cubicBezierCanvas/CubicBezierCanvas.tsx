@@ -17,8 +17,12 @@ const DynamicCurveEditor: React.FC = () => {
   ]);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
-  const getCanvasX = (x: number) => x * canvasSize;
-  const getCanvasY = (y: number) => (1 - y) * canvasSize;
+  // value를 min과 max 사이로 제한하는 clamp 함수
+  const clamp = (value: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, value));
+
+  const getCanvasX = (x: number) => clamp(x, 0, 1) * canvasSize;
+  const getCanvasY = (y: number) => (1 - clamp(y, 0, 1)) * canvasSize;
 
   const pointToLineDistance = (
     px: number,
@@ -92,18 +96,21 @@ const DynamicCurveEditor: React.FC = () => {
             };
 
       for (let t = 0; t <= 1; t += 1 / steps) {
-        const xCurve =
+        let xCurve =
           0.5 *
           (2 * p1.x +
             (-p0.x + p2.x) * t +
             (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
             (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
-        const yCurve =
+        let yCurve =
           0.5 *
           (2 * p1.y +
             (-p0.y + p2.y) * t +
             (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
             (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
+        // clamp하여 캔버스 범위 내로 제한
+        xCurve = clamp(xCurve, 0, 1);
+        yCurve = clamp(yCurve, 0, 1);
 
         const distance = Math.hypot(x - xCurve, y - yCurve);
         if (distance < proximityThreshold) return true;
@@ -130,12 +137,16 @@ const DynamicCurveEditor: React.FC = () => {
           (-p0.x + p2.x) * t +
           (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
           (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
-      const y =
+      let y =
         0.5 *
         (2 * p1.y +
           (-p0.y + p2.y) * t +
           (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
           (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
+
+      // 계산된 스플라인 포인트를 캔버스 범위 내로 제한
+      x = clamp(x, 0, 1);
+      y = clamp(y, 0, 1);
 
       if (prevX >= 0 && x < prevX) x = prevX;
       prevX = x;
@@ -228,9 +239,10 @@ const DynamicCurveEditor: React.FC = () => {
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left) / canvasSize;
-    const mouseY = 1 - (e.clientY - rect.top) / canvasSize;
+    const mouseX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
+    const mouseY = clamp(1 - (e.clientY - rect.top) / canvasSize, 0, 1);
 
+    // 내부 control point에 대한 드래그 검사 (엔드포인트는 드래그 불가)
     for (let i = 1; i < controlPoints.length - 1; i++) {
       const cp = controlPoints[i];
       if (Math.hypot(mouseX - cp.x, mouseY - cp.y) < 0.025) {
@@ -260,16 +272,13 @@ const DynamicCurveEditor: React.FC = () => {
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingIndex === null || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    let newX = (e.clientX - rect.left) / canvasSize;
-    const newY = Math.min(
-      1,
-      Math.max(0, 1 - (e.clientY - rect.top) / canvasSize)
-    );
+    let newX = clamp((e.clientX - rect.left) / canvasSize, 0, 1);
+    const newY = clamp(1 - (e.clientY - rect.top) / canvasSize, 0, 1);
 
     if (draggingIndex > 0 && draggingIndex < controlPoints.length - 1) {
       const leftX = controlPoints[draggingIndex - 1].x + minXGap;
       const rightX = controlPoints[draggingIndex + 1].x - minXGap;
-      newX = Math.min(rightX, Math.max(leftX, newX));
+      newX = clamp(newX, leftX, rightX);
     }
 
     setControlPoints((prev) => {
@@ -281,6 +290,7 @@ const DynamicCurveEditor: React.FC = () => {
 
   const handleMouseUp = () => setDraggingIndex(null);
 
+  // 스플라인 포인트 계산 시 clamp 적용
   const getCatmullRomPoint = (
     t: number,
     p0: ControlPoint,
@@ -288,29 +298,33 @@ const DynamicCurveEditor: React.FC = () => {
     p2: ControlPoint,
     p3: ControlPoint
   ) => {
-    const x =
+    let x =
       0.5 *
       (2 * p1.x +
         (-p0.x + p2.x) * t +
         (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t * t +
         (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t * t * t);
-    const y =
+    let y =
       0.5 *
       (2 * p1.y +
         (-p0.y + p2.y) * t +
         (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t * t +
         (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t * t * t);
+
+    x = clamp(x, 0, 1);
+    y = clamp(y, 0, 1);
+
     return { x, y };
   };
 
-  const exportCurveData = (frameCount: number) => {
+  const exportCurveData = (totalStep: number) => {
     if (controlPoints.length < 2) {
       console.error("At least 2 control points are required.");
       return [];
     }
 
     const curveData: { x: number; y: number }[] = [];
-    const steps = frameCount - 1;
+    const steps = totalStep - 1;
 
     for (let i = 0; i <= steps; i++) {
       const tGlobal = i / steps; // 0부터 1까지
@@ -319,10 +333,9 @@ const DynamicCurveEditor: React.FC = () => {
       let segmentIndex = Math.min(
         Math.floor(tGlobal * segmentCount),
         segmentCount - 1
-      ); // segmentIndex가 segmentCount-1을 넘지 않도록 제한
+      );
       const tLocal = (tGlobal - segmentIndex * segmentLength) / segmentLength;
 
-      // 세그먼트별 포인트 설정
       const p0 =
         segmentIndex === 0
           ? {
