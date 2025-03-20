@@ -75,7 +75,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   const [splitPreview, setSplitPreview] = useState<number | null>(null);
 
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (mode === "hand" || isSplitEnabled) return; // 핸드 모드나 쪼개기 모드에서는 드래그 비활성화
+    if (mode === "hand" || isSplitEnabled) return;
     e.preventDefault();
     e.stopPropagation();
     if (blockRef.current) {
@@ -95,7 +95,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   };
 
   const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isSplitEnabled || mode === "hand") return; // 쪼개기 모드나 핸드 모드에서는 리사이즈 비활성화
+    if (isSplitEnabled || mode === "hand") return;
     e.preventDefault();
     e.stopPropagation();
     resizeData.current = { startX: e.clientX, origDuration: block.duration };
@@ -135,12 +135,12 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   };
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation();
+    e.stopPropagation(); // 이벤트 버블링 방지
     if (isSplitEnabled && splitPreview) {
       onSplitBlock(block.id, splitPreview);
       setSplitPreview(null);
     } else if (mode === "hand" && !isSplitEnabled) {
-      onFocus(block.id); // 핸드 모드에서만 포커스 설정
+      onFocus(block.id); // 블록 클릭 시 포커스 설정
     }
   };
 
@@ -181,7 +181,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       onMouseDown={handleDragStart}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      onClick={handleClick} // 단일 클릭으로 처리
+      onClick={handleClick}
       onTouchStart={(e) => {
         if (mode === "hand" || isSplitEnabled) return;
         const touch = e.touches[0];
@@ -332,7 +332,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
             height: "50px",
             width: "2px",
             backgroundColor: "green",
-            zIndex: 10,
+            zIndex: "10",
           }}
         />
       )}
@@ -590,6 +590,17 @@ const Timeline: React.FC<TimelineProps> = ({
 
   const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
 
+  // 타임라인 클릭 시 처리
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (mode === "hand" && !isSplitEnabled) {
+      const target = e.target as HTMLElement;
+      // 클릭 대상이 블록이 아닌 경우 포커스 해제
+      if (!target.closest(".block-component")) {
+        setFocusedBlockId(null);
+      }
+    }
+  };
+
   useEffect(() => {
     return () => {
       window.removeEventListener("mousemove", handleDragging);
@@ -622,6 +633,7 @@ const Timeline: React.FC<TimelineProps> = ({
           padding: `${TIMELINE_PADDING}px`,
           minHeight: "400px",
         }}
+        onClick={handleTimelineClick} // 타임라인 클릭 이벤트
       >
         <TimeAxis totalTime={totalTime} />
         {blockTypes.map((type) => {
