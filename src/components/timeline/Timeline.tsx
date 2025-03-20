@@ -498,7 +498,7 @@ const Timeline: React.FC<TimelineProps> = ({
         timelineRect
       );
 
-      const trackHeight = 70;
+      const trackHeight = 70; // Height of each track (60px) + margin (10px)
       const trackIndex = Math.floor((relativeY - 40) / trackHeight);
       const targetTrackId =
         trackIndex >= 0 && trackIndex < tracks.length
@@ -649,29 +649,34 @@ const Timeline: React.FC<TimelineProps> = ({
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
 
-    const trackHeight = 70;
+    const timelineRect = timelineRef.current.getBoundingClientRect();
+    const trackHeight = 70; // Height of each track (60px) + margin (10px)
+    const timeAxisHeight = 40; // Height of TimeAxis (30px) + margin (10px)
+
+    // Calculate top position based on target track or mouse position
     const dropTrackIndex =
       dropTarget?.trackId != null
         ? tracks.findIndex((t) => t.id === dropTarget.trackId)
         : -1;
     const dropTrackTop =
       dropTrackIndex >= 0
-        ? 40 + dropTrackIndex * trackHeight
+        ? timelineRect.top +
+          TIMELINE_PADDING +
+          timeAxisHeight +
+          dropTrackIndex * trackHeight
         : dragInfo.currentY - dragInfo.offsetY;
 
     const leftPos =
       dropTarget?.trackId != null && dropTarget?.position != null
-        ? timelineRef.current.getBoundingClientRect().left +
-          TIMELINE_PADDING +
-          dropTarget.position * scale
+        ? timelineRect.left + TIMELINE_PADDING + dropTarget.position * scale
         : dragInfo.currentX - dragInfo.offsetX;
 
     return (
       <div
         style={{
           position: "fixed",
-          left: leftPos,
-          top: dropTrackTop,
+          left: `${leftPos}px`,
+          top: `${dropTrackTop}px`,
           width: `${draggedBlock.duration * scale}px`,
           height: "50px",
           backgroundColor: bgColor,
@@ -759,7 +764,7 @@ const Timeline: React.FC<TimelineProps> = ({
           <div
             style={{
               position: "absolute",
-              left: `${(snapGuidePosition * scale) + TIMELINE_PADDING}px`,
+              left: `${snapGuidePosition * scale + TIMELINE_PADDING}px`,
               top: 0,
               height: "100%",
               width: "2px",
