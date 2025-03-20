@@ -1,17 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
 const TIMELINE_PADDING = 20;
-const scale = 10; // 1초당 10px (렌더)
+const scale = 10;
 
-// 블록 인터페이스
 interface Block {
   id: number;
   type: "video" | "audio" | "shape" | "effect";
-  duration: number; // 초 단위
-  starttime: number; // 초 단위
+  duration: number;
+  starttime: number;
 }
 
-// 타임라인 상단 시간 표시 컴포넌트
 const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
   const ticks = [];
   for (let t = 0; t <= totalTime; t += 5) {
@@ -41,7 +39,7 @@ const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
 
 interface BlockComponentProps {
   block: Block;
-  boundaries: { min: number; max: number }; // 이동 및 크기 조절 제한 (초 단위)
+  boundaries: { min: number; max: number };
   updateBlock: (updated: Block) => void;
   onDragStart: (
     blockId: number,
@@ -52,19 +50,23 @@ interface BlockComponentProps {
     offsetX: number,
     offsetY: number
   ) => void;
+  onSplitBlock: (blockId: number, splitTime: number) => void;
+  isSplitEnabled: boolean;
 }
 
-// 블록 컴포넌트 (드래그, 리사이즈 직접 구현)
 const BlockComponent: React.FC<BlockComponentProps> = ({
   block,
   boundaries,
   updateBlock,
   onDragStart,
+  onSplitBlock,
+  isSplitEnabled,
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
   const resizeData = useRef<{ startX: number; origDuration: number } | null>(
     null
   );
+  const [splitPreview, setSplitPreview] = useState<number | null>(null);
 
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -85,8 +87,8 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     }
   };
 
-  // 리사이즈 시작
   const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isSplitEnabled) return; // 쪼개기 모드일 때 리사이즈 비활성화
     e.preventDefault();
     e.stopPropagation();
     resizeData.current = { startX: e.clientX, origDuration: block.duration };
@@ -94,22 +96,43 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     window.addEventListener("mouseup", onResizeMouseUp);
   };
 
-  // 리사이즈 중: 오른쪽에서만 리사이즈하며, 다음 블록과 겹치지 않도록 함
   const onResizing = (e: MouseEvent) => {
     if (!resizeData.current) return;
     const deltaSeconds = (e.clientX - resizeData.current.startX) / scale;
     let newDuration = resizeData.current.origDuration + deltaSeconds;
-    // 최소 1초, 최대: boundaries.max - 현재 시작시간
     newDuration = Math.max(1, newDuration);
     newDuration = Math.min(boundaries.max - block.starttime, newDuration);
     updateBlock({ ...block, duration: Math.round(newDuration * 100) / 100 });
   };
 
-  // 리사이즈 종료
   const onResizeMouseUp = () => {
     resizeData.current = null;
     window.removeEventListener("mousemove", onResizing);
     window.removeEventListener("mouseup", onResizeMouseUp);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isSplitEnabled || !blockRef.current) return;
+    const rect = blockRef.current.getBoundingClientRect();
+    const relativeX = e.clientX - rect.left;
+    const splitTime = Math.round((relativeX / scale) * 10) / 10;
+    if (splitTime > 0 && splitTime < block.duration) {
+      setSplitPreview(splitTime);
+    } else {
+      setSplitPreview(null);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (isSplitEnabled) setSplitPreview(null);
+  };
+
+  const handleSplit = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (isSplitEnabled && splitPreview) {
+      onSplitBlock(block.id, splitPreview);
+      setSplitPreview(null);
+    }
   };
 
   const bgColor =
@@ -134,13 +157,15 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
         borderRadius: "4px",
         padding: "4px",
         boxSizing: "border-box",
-        cursor: "grab",
+        cursor: isSplitEnabled ? "crosshair" : "grab",
         userSelect: "none",
         zIndex: 1,
-        touchAction: "none", // 모바일 지원 추가
+        touchAction: "none",
       }}
       onMouseDown={handleDragStart}
-      // 터치 이벤트 추가
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleSplit}
       onTouchStart={(e) => {
         const touch = e.touches[0];
         if (blockRef.current) {
@@ -160,7 +185,18 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       }}
     >
       <div>{block.type}</div>
-      {/* 리사이즈 핸들 (오른쪽) */}
+      {isSplitEnabled && splitPreview !== null && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${splitPreview * scale}px`,
+            width: "2px",
+            height: "100%",
+            backgroundColor: "red",
+            zIndex: 10,
+          }}
+        />
+      )}
       <div
         style={{
           position: "absolute",
@@ -168,8 +204,10 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
           top: 0,
           width: "10px",
           height: "100%",
-          backgroundColor: "rgba(255, 0, 0, 0.6)",
-          cursor: "ew-resize",
+          backgroundColor: isSplitEnabled
+            ? "rgba(150, 150, 150, 0.6)"
+            : "rgba(255, 0, 0, 0.6)",
+          cursor: isSplitEnabled ? "not-allowed" : "ew-resize",
         }}
         onMouseDown={onResizeMouseDown}
       ></div>
@@ -193,6 +231,8 @@ interface BlockRowProps {
   ) => void;
   isDropTarget: boolean;
   dropPosition: number | null;
+  onSplitBlock: (blockId: number, splitTime: number) => void;
+  isSplitEnabled: boolean;
 }
 
 const BlockRow: React.FC<BlockRowProps> = ({
@@ -203,8 +243,9 @@ const BlockRow: React.FC<BlockRowProps> = ({
   onDragStart,
   isDropTarget,
   dropPosition,
+  onSplitBlock,
+  isSplitEnabled,
 }) => {
-  // 행 내 블록들을 시작 시간 순 정렬
   const sortedBlocks = [...blocks].sort((a, b) => a.starttime - b.starttime);
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -233,7 +274,6 @@ const BlockRow: React.FC<BlockRowProps> = ({
         {type}
       </div>
       {sortedBlocks.map((block, index) => {
-        // 이전 블록의 끝과 다음 블록의 시작을 기준으로 이동/리사이즈 한계 계산
         const prevEnd =
           index === 0
             ? 0
@@ -251,6 +291,8 @@ const BlockRow: React.FC<BlockRowProps> = ({
             boundaries={boundaries}
             updateBlock={updateBlock}
             onDragStart={onDragStart}
+            onSplitBlock={onSplitBlock}
+            isSplitEnabled={isSplitEnabled}
           />
         );
       })}
@@ -272,9 +314,10 @@ const BlockRow: React.FC<BlockRowProps> = ({
 
 interface TimelineProps {
   totalTime: number;
+  isSplitEnabled: boolean;
 }
 
-const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
+const Timeline: React.FC<TimelineProps> = ({ totalTime, isSplitEnabled }) => {
   const initialBlocks: Block[] = [
     { id: 1, type: "video", duration: 10, starttime: 0 },
     { id: 2, type: "audio", duration: 5, starttime: 12 },
@@ -299,66 +342,78 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
   } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // 블록 업데이트 (리사이즈)
   const updateBlock = (updated: Block) => {
     setBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
   };
 
-  // 블록 위치 계산 (충돌 방지)
   const calculateBlockPosition = (
     trackType: Block["type"],
     position: number,
     blockId: number,
     blockDuration: number
   ) => {
-    // 같은 트랙의 다른 블록들
     const sameTrackBlocks = blocks
       .filter((b) => b.type === trackType && b.id !== blockId)
       .sort((a, b) => a.starttime - b.starttime);
 
-    // 초기 위치
     let newPosition = Math.max(0, position);
 
-    // 다른 블록과 겹치는지 확인
     for (const block of sameTrackBlocks) {
-      // 블록의 끝 위치
       const blockEnd = block.starttime + block.duration;
-
-      // 새 위치가 기존 블록의 중간에 있으면
       if (newPosition >= block.starttime && newPosition < blockEnd) {
-        // 우선 기존 블록 뒤로 배치
         newPosition = blockEnd;
-      }
-      // 새 위치와 블록 길이가 기존 블록과 겹치면
-      else if (
+      } else if (
         newPosition < block.starttime &&
         newPosition + blockDuration > block.starttime
       ) {
-        // 기존 블록 앞에 배치 (충분한 공간이 있으면)
         if (block.starttime >= blockDuration) {
           newPosition = block.starttime - blockDuration;
-        }
-        // 아니면 뒤에 배치
-        else {
+        } else {
           newPosition = blockEnd;
         }
       }
     }
-
     return newPosition;
   };
-  // 타임라인 내 상대적 시간 위치를 계산하는 유틸리티 함수
+
   const getTimePositionFromClientX = (
     clientX: number,
     offsetX: number,
     timelineRect: DOMRect
   ): number => {
-    const previewLeftPos = clientX - offsetX; // 미리보기의 left edge
-    const relativeX = previewLeftPos - timelineRect.left - TIMELINE_PADDING; // 패딩 보정
-    return Math.max(0, relativeX / scale); // 시간 단위로 변환
+    const previewLeftPos = clientX - offsetX;
+    const relativeX = previewLeftPos - timelineRect.left - TIMELINE_PADDING;
+    return Math.max(0, relativeX / scale);
   };
 
-  // 드래그 시작
+  const handleSplitBlock = (blockId: number, splitTime: number) => {
+    setBlocks((prev) => {
+      const blockIndex = prev.findIndex((b) => b.id === blockId);
+      if (blockIndex === -1) return prev;
+
+      const block = prev[blockIndex];
+      if (splitTime <= 0 || splitTime >= block.duration) return prev;
+
+      const firstBlock: Block = {
+        ...block,
+        duration: splitTime,
+      };
+      const secondBlock: Block = {
+        ...block,
+        id: Math.max(...prev.map((b) => b.id)) + 1,
+        starttime: block.starttime + splitTime,
+        duration: block.duration - splitTime,
+      };
+
+      return [
+        ...prev.slice(0, blockIndex),
+        firstBlock,
+        secondBlock,
+        ...prev.slice(blockIndex + 1),
+      ];
+    });
+  };
+
   const handleDragStart = (
     blockId: number,
     trackType: Block["type"],
@@ -368,6 +423,9 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     offsetX: number,
     offsetY: number
   ) => {
+    const draggedBlock = blocks.find((b) => b.id === blockId);
+    if (!draggedBlock) return;
+
     setDragInfo({
       blockId,
       originalType: trackType,
@@ -375,12 +433,11 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
       startY: clientY,
       currentX: clientX,
       currentY: clientY,
-      blockWidth: blockWidth,
-      offsetX: offsetX,
-      offsetY: offsetY,
+      blockWidth: draggedBlock.duration * scale,
+      offsetX,
+      offsetY,
     });
 
-    // 글로벌 이벤트 리스너 추가
     window.addEventListener("mousemove", handleDragging);
     window.addEventListener("mouseup", handleDragEnd);
   };
@@ -427,6 +484,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     },
     [dragInfo, blocks]
   );
+
   const handleDragEnd = useCallback(
     (e: MouseEvent) => {
       if (dragInfo?.blockId && dropTarget?.trackType) {
@@ -434,7 +492,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
         if (draggedBlock && draggedBlock.type === dropTarget.trackType) {
           const newPosition = calculateBlockPosition(
             dropTarget.trackType,
-            dropTarget.position, // 미리보기의 left edge 기반 위치
+            dropTarget.position,
             dragInfo.blockId,
             draggedBlock.duration
           );
@@ -462,12 +520,12 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
       draggedBlock.type === "video"
         ? "rgba(0, 0, 255, 0.8)"
         : draggedBlock.type === "audio"
-        ? "rgba(18, 148, 85, 0.47)"
+        ? "rgba(0, 255, 0, 0.8)"
         : draggedBlock.type === "shape"
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
 
-    const leftPos = dragInfo.currentX - dragInfo.offsetX; // 미리보기의 left edge
+    const leftPos = dragInfo.currentX - dragInfo.offsetX;
     const topPos = dragInfo.currentY - dragInfo.offsetY;
 
     return (
@@ -495,10 +553,10 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
       </div>
     );
   };
+
   const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
 
   useEffect(() => {
-    // 컴포넌트 언마운트 시 이벤트 리스너 제거
     return () => {
       window.removeEventListener("mousemove", handleDragging);
       window.removeEventListener("mouseup", handleDragEnd);
@@ -524,7 +582,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
         overflowX: "auto",
         overflowY: "visible",
         width: "100%",
-        padding: `${TIMELINE_PADDING}px`, // 상수 사용
+        padding: `${TIMELINE_PADDING}px`,
         minHeight: "400px",
       }}
     >
@@ -543,6 +601,8 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
             dropPosition={
               dropTarget?.trackType === type ? dropTarget.position : null
             }
+            onSplitBlock={handleSplitBlock}
+            isSplitEnabled={isSplitEnabled}
           />
         );
       })}
