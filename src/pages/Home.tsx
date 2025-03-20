@@ -5,13 +5,20 @@ const Home: React.FC = () => {
   const [totalTime, setTotalTime] = useState(120);
   const [isSplitEnabled, setIsSplitEnabled] = useState(false);
   const [blocks, setBlocks] = useState<Block[]>([
-    { id: 1, type: "video", duration: 10, starttime: 0 },
-    { id: 2, type: "audio", duration: 5, starttime: 12 },
-    { id: 3, type: "shape", duration: 8, starttime: 18 },
-    { id: 4, type: "video", duration: 6, starttime: 28 },
+    { id: 1, type: "video", duration: 10, starttime: 0, trackId: 0 },
+    { id: 2, type: "audio", duration: 5, starttime: 12, trackId: 1 },
+    { id: 3, type: "shape", duration: 8, starttime: 18, trackId: 2 },
+    { id: 4, type: "video", duration: 6, starttime: 28, trackId: 0 },
   ]);
   const [focusedBlockId, setFocusedBlockId] = useState<number | null>(null);
   const [mode, setMode] = useState<"select" | "hand">("select");
+
+  const tracks = [
+    { id: 0, label: "Track 1" },
+    { id: 1, label: "Track 2" },
+    { id: 2, label: "Track 3" },
+    { id: 3, label: "Track 4" },
+  ];
 
   const addBlock = () => {
     const newId = blocks.length ? Math.max(...blocks.map((b) => b.id)) + 1 : 1;
@@ -20,12 +27,13 @@ const Home: React.FC = () => {
       type: "video",
       duration: 5,
       starttime: 0,
+      trackId: 0, // Default to first track
     };
     setBlocks((prev) => [...prev, newBlock]);
   };
 
   const deleteBlock = () => {
-    if (focusedBlockId === null || mode !== "hand") return; // hand 모드에서만 삭제 가능
+    if (focusedBlockId === null || mode !== "hand") return;
     setBlocks((prev) => prev.filter((b) => b.id !== focusedBlockId));
     setFocusedBlockId(null);
   };
@@ -103,6 +111,7 @@ const Home: React.FC = () => {
         isSplitEnabled={isSplitEnabled}
         blocks={blocks}
         setBlocks={setBlocks}
+        tracks={tracks}
         focusedBlockId={focusedBlockId}
         setFocusedBlockId={setFocusedBlockId}
         mode={mode}

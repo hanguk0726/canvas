@@ -9,6 +9,12 @@ export interface Block {
   type: "video" | "audio" | "shape" | "effect";
   duration: number;
   starttime: number;
+  trackId: number;
+}
+
+interface Track {
+  id: number;
+  label: string;
 }
 
 const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
@@ -44,7 +50,7 @@ interface BlockComponentProps {
   updateBlock: (updated: Block) => void;
   onDragStart: (
     blockId: number,
-    trackType: Block["type"],
+    trackId: number,
     clientX: number,
     clientY: number,
     blockWidth: number,
@@ -76,23 +82,21 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   const [splitPreview, setSplitPreview] = useState<number | null>(null);
 
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (mode === "hand" || isSplitEnabled) return;
+    if (mode === "hand" || isSplitEnabled || !blockRef.current) return;
     e.preventDefault();
     e.stopPropagation();
-    if (blockRef.current) {
-      const rect = blockRef.current.getBoundingClientRect();
-      const offsetX = e.clientX - rect.left;
-      const offsetY = e.clientY - rect.top;
-      onDragStart(
-        block.id,
-        block.type,
-        e.clientX,
-        e.clientY,
-        rect.width,
-        offsetX,
-        offsetY
-      );
-    }
+    const rect = blockRef.current.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    onDragStart(
+      block.id,
+      block.trackId,
+      e.clientX,
+      e.clientY,
+      rect.width,
+      offsetX,
+      offsetY
+    );
   };
 
   const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -137,7 +141,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    if (isSplitEnabled && splitPreview) {
+    if (isSplitEnabled && splitPreview !== null) {
       onSplitBlock(block.id, splitPreview);
       setSplitPreview(null);
     } else if (mode === "hand" && !isSplitEnabled) {
@@ -184,22 +188,20 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       onTouchStart={(e) => {
-        if (mode === "hand" || isSplitEnabled) return;
+        if (mode === "hand" || isSplitEnabled || !blockRef.current) return;
         const touch = e.touches[0];
-        if (blockRef.current) {
-          const rect = blockRef.current.getBoundingClientRect();
-          const offsetX = touch.clientX - rect.left;
-          const offsetY = touch.clientY - rect.top;
-          onDragStart(
-            block.id,
-            block.type,
-            touch.clientX,
-            touch.clientY,
-            rect.width,
-            offsetX,
-            offsetY
-          );
-        }
+        const rect = blockRef.current.getBoundingClientRect();
+        const offsetX = touch.clientX - rect.left;
+        const offsetY = touch.clientY - rect.top;
+        onDragStart(
+          block.id,
+          block.trackId,
+          touch.clientX,
+          touch.clientY,
+          rect.width,
+          offsetX,
+          offsetY
+        );
       }}
     >
       <div>{block.type}</div>
@@ -236,13 +238,13 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
 };
 
 interface BlockRowProps {
-  type: Block["type"];
+  track: Track;
   blocks: Block[];
   totalTime: number;
   updateBlock: (updated: Block) => void;
   onDragStart: (
     blockId: number,
-    trackType: Block["type"],
+    trackId: number,
     clientX: number,
     clientY: number,
     blockWidth: number,
@@ -259,7 +261,7 @@ interface BlockRowProps {
 }
 
 const BlockRow: React.FC<BlockRowProps> = ({
-  type,
+  track,
   blocks,
   totalTime,
   updateBlock,
@@ -297,7 +299,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
           fontSize: "12px",
         }}
       >
-        {type}
+        {track.label}
       </div>
       {sortedBlocks.map((block, index) => {
         const prevEnd =
@@ -346,6 +348,7 @@ interface TimelineProps {
   isSplitEnabled: boolean;
   blocks: Block[];
   setBlocks: React.Dispatch<React.SetStateAction<Block[]>>;
+  tracks: Track[];
   focusedBlockId: number | null;
   setFocusedBlockId: (id: number | null) => void;
   mode: "select" | "hand";
@@ -356,13 +359,14 @@ const Timeline: React.FC<TimelineProps> = ({
   isSplitEnabled,
   blocks,
   setBlocks,
+  tracks,
   focusedBlockId,
   setFocusedBlockId,
   mode,
 }) => {
   const [dragInfo, setDragInfo] = useState<{
-    blockId: number | null;
-    originalType: Block["type"] | null;
+    blockId: number;
+    originalTrackId: number;
     startX: number;
     startY: number;
     currentX: number;
@@ -372,7 +376,7 @@ const Timeline: React.FC<TimelineProps> = ({
     offsetY: number;
   } | null>(null);
   const [dropTarget, setDropTarget] = useState<{
-    trackType: Block["type"] | null;
+    trackId: number;
     position: number;
   } | null>(null);
   const [snapGuidePosition, setSnapGuidePosition] = useState<number | null>(
@@ -385,13 +389,13 @@ const Timeline: React.FC<TimelineProps> = ({
   };
 
   const calculateBlockPosition = (
-    trackType: Block["type"],
+    trackId: number,
     position: number,
     blockId: number,
     blockDuration: number
   ) => {
     const sameTrackBlocks = blocks
-      .filter((b) => b.type === trackType && b.id !== blockId)
+      .filter((b) => b.trackId === trackId && b.id !== blockId)
       .sort((a, b) => a.starttime - b.starttime);
 
     let newPosition = Math.max(0, position);
@@ -424,34 +428,13 @@ const Timeline: React.FC<TimelineProps> = ({
     return Math.max(0, relativeX / scale);
   };
 
-  /*************  ✨ Codeium Command ⭐  *************/
-  /**
-   * Split a block into two blocks at the given split time.
-   *
-   * Only split if the split time is within the block's duration.
-   * Otherwise, the block is left unchanged.
-   *
-   * The new block's id is the maximum id of the existing blocks plus one.
-   *
-   * The new block's starttime is the original block's starttime plus the split time.
-   * The new block's duration is the original block's duration minus the split time.
-   *
-   * @param blockId the id of the block to split
-   * @param splitTime the time at which to split the block
-   */
-  /******  075b68d5-d361-40a7-9018-53c12ddf50be  *******/
   const handleSplitBlock = (blockId: number, splitTime: number) => {
     setBlocks((prev) => {
       const blockIndex = prev.findIndex((b) => b.id === blockId);
       if (blockIndex === -1) return prev;
 
       const block = prev[blockIndex];
-      if (
-        snapGuidePosition == null ||
-        snapGuidePosition <= 0 ||
-        snapGuidePosition >= block.duration
-      )
-        return prev;
+      if (splitTime <= 0 || splitTime >= block.duration) return prev;
 
       const firstBlock: Block = {
         ...block,
@@ -475,7 +458,7 @@ const Timeline: React.FC<TimelineProps> = ({
 
   const handleDragStart = (
     blockId: number,
-    trackType: Block["type"],
+    trackId: number,
     clientX: number,
     clientY: number,
     blockWidth: number,
@@ -487,7 +470,7 @@ const Timeline: React.FC<TimelineProps> = ({
 
     setDragInfo({
       blockId,
-      originalType: trackType,
+      originalTrackId: trackId,
       startX: clientX,
       startY: clientY,
       currentX: clientX,
@@ -496,20 +479,16 @@ const Timeline: React.FC<TimelineProps> = ({
       offsetX,
       offsetY,
     });
-
-    window.addEventListener("mousemove", handleDragging);
-    window.addEventListener("mouseup", handleDragEnd);
   };
 
   const handleDragging = useCallback(
     (e: MouseEvent) => {
-      if (!dragInfo || !dragInfo.blockId || !timelineRef.current) return;
+      if (!dragInfo || !timelineRef.current) return;
 
-      setDragInfo((prev) => ({
-        ...prev!,
-        currentX: e.clientX,
-        currentY: e.clientY,
-      }));
+      setDragInfo((prev) => {
+        if (!prev) return null;
+        return { ...prev, currentX: e.clientX, currentY: e.clientY };
+      });
 
       const timelineRect = timelineRef.current.getBoundingClientRect();
       const relativeY = e.clientY - timelineRect.top;
@@ -521,46 +500,68 @@ const Timeline: React.FC<TimelineProps> = ({
 
       const trackHeight = 70;
       const trackIndex = Math.floor((relativeY - 40) / trackHeight);
-      const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
-      const targetTrackType =
-        trackIndex >= 0 && trackIndex < blockTypes.length
-          ? blockTypes[trackIndex]
+      const targetTrackId =
+        trackIndex >= 0 && trackIndex < tracks.length
+          ? tracks[trackIndex].id
           : null;
 
       const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
-      if (
-        targetTrackType &&
-        draggedBlock &&
-        targetTrackType === draggedBlock.type
-      ) {
-        // Snapping logic
+      if (!draggedBlock || targetTrackId === null) {
+        setDropTarget(null);
+        setSnapGuidePosition(null);
+        return;
+      }
 
-        const sameTrackBlocks = blocks
-          .filter(
-            (b) => b.type === targetTrackType && b.id !== dragInfo.blockId
-          )
-          .sort((a, b) => a.starttime - b.starttime);
-        const allOtherBlocks = blocks.filter(
-          (b) =>
-            b.id !== dragInfo.blockId &&
-            (b.type !== draggedBlock.type || // Blocks on other tracks
-              (b.type === draggedBlock.type && // Blocks on same track, but not at original position
-                (Math.abs(b.starttime - draggedBlock.starttime) >
-                  snapThreshold ||
-                  Math.abs(
-                    b.starttime +
-                      b.duration -
-                      (draggedBlock.starttime + draggedBlock.duration)
-                  ) > snapThreshold)))
-        );
+      const sameTrackBlocks = blocks
+        .filter((b) => b.trackId === targetTrackId && b.id !== dragInfo.blockId)
+        .sort((a, b) => a.starttime - b.starttime);
+      const allOtherBlocks = blocks.filter(
+        (b) =>
+          b.id !== dragInfo.blockId &&
+          (b.trackId !== targetTrackId ||
+            (b.trackId === targetTrackId &&
+              (Math.abs(b.starttime - draggedBlock.starttime) > snapThreshold ||
+                Math.abs(
+                  b.starttime +
+                    b.duration -
+                    (draggedBlock.starttime + draggedBlock.duration)
+                ) > snapThreshold)))
+      );
 
-        let newPosition = timePosition;
-        let snapPosition: number | null = null;
-        const potentialStart = timePosition;
-        const potentialEnd = potentialStart + draggedBlock.duration;
+      let newPosition = timePosition;
+      let snapPosition: number | null = null;
+      const potentialStart = timePosition;
+      const potentialEnd = potentialStart + draggedBlock.duration;
 
-        // Check snapping to same track blocks (feature 1.1)
-        for (const block of sameTrackBlocks) {
+      for (const block of sameTrackBlocks) {
+        const blockStart = block.starttime;
+        const blockEnd = block.starttime + block.duration;
+
+        const distanceToEnd = Math.abs(potentialStart - blockEnd);
+        if (
+          distanceToEnd < snapThreshold &&
+          potentialStart > blockEnd - snapThreshold
+        ) {
+          newPosition = blockEnd;
+          snapPosition = blockEnd;
+          break;
+        }
+
+        const distanceToStart = Math.abs(potentialEnd - blockStart);
+        if (
+          distanceToStart < snapThreshold &&
+          potentialEnd < blockStart + snapThreshold
+        ) {
+          newPosition = blockStart - draggedBlock.duration;
+          snapPosition = blockStart;
+          break;
+        }
+      }
+
+      if (snapPosition === null) {
+        for (const block of allOtherBlocks.filter(
+          (b) => b.trackId !== targetTrackId
+        )) {
           const blockStart = block.starttime;
           const blockEnd = block.starttime + block.duration;
 
@@ -584,79 +585,58 @@ const Timeline: React.FC<TimelineProps> = ({
             break;
           }
         }
-
-        // Check snapping to other track blocks (feature 1.2) if no same-track snap
-        if (snapPosition === null) {
-          for (const block of allOtherBlocks.filter(
-            (b) => b.type !== draggedBlock.type
-          )) {
-            const blockStart = block.starttime;
-            const blockEnd = block.starttime + block.duration;
-
-            const distanceToEnd = Math.abs(potentialStart - blockEnd);
-            if (
-              distanceToEnd < snapThreshold &&
-              potentialStart > blockEnd - snapThreshold
-            ) {
-              newPosition = blockEnd;
-              snapPosition = blockEnd;
-              break;
-            }
-
-            const distanceToStart = Math.abs(potentialEnd - blockStart);
-            if (
-              distanceToStart < snapThreshold &&
-              potentialEnd < blockStart + snapThreshold
-            ) {
-              newPosition = blockStart - draggedBlock.duration;
-              snapPosition = blockStart;
-              break;
-            }
-          }
-        }
-
-        setDropTarget({
-          trackType: targetTrackType,
-          position: Math.round(newPosition * 10) / 10,
-        });
-        setSnapGuidePosition(snapPosition);
-      } else {
-        setDropTarget(null);
-        setSnapGuidePosition(null);
       }
+
+      setDropTarget({
+        trackId: targetTrackId,
+        position: Math.round(newPosition * 10) / 10,
+      });
+      setSnapGuidePosition(snapPosition);
     },
-    [dragInfo, blocks]
+    [dragInfo, blocks, tracks]
   );
 
   const handleDragEnd = useCallback(
     (e: MouseEvent) => {
-      if (dragInfo?.blockId && dropTarget?.trackType) {
-        const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
-        if (draggedBlock && draggedBlock.type === dropTarget.trackType) {
-          const newPosition = calculateBlockPosition(
-            dropTarget.trackType,
-            dropTarget.position,
-            dragInfo.blockId,
-            draggedBlock.duration
-          );
-          setBlocks((prev) =>
-            prev.map((b) =>
-              b.id === dragInfo.blockId ? { ...b, starttime: newPosition } : b
-            )
-          );
-        }
+      if (!dragInfo || !dropTarget || dropTarget.trackId === null) {
+        setDragInfo(null);
+        setDropTarget(null);
+        setSnapGuidePosition(null);
+        return;
       }
+
+      const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
+      if (!draggedBlock) {
+        setDragInfo(null);
+        setDropTarget(null);
+        setSnapGuidePosition(null);
+        return;
+      }
+
+      const newPosition = calculateBlockPosition(
+        dropTarget.trackId,
+        dropTarget.position,
+        dragInfo.blockId,
+        draggedBlock.duration
+      );
+      setBlocks((prev) =>
+        prev.map((b) =>
+          b.id === dragInfo.blockId
+            ? { ...b, starttime: newPosition, trackId: dropTarget.trackId }
+            : b
+        )
+      );
+
       setDragInfo(null);
       setDropTarget(null);
       setSnapGuidePosition(null);
-      window.removeEventListener("mousemove", handleDragging);
-      window.removeEventListener("mouseup", handleDragEnd);
     },
     [dragInfo, dropTarget, blocks, setBlocks]
   );
 
   const renderDragPreview = () => {
-    if (!dragInfo?.blockId || !timelineRef.current) return null;
+    if (!dragInfo || !timelineRef.current) return null;
+
     const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
     if (!draggedBlock) return null;
 
@@ -669,8 +649,18 @@ const Timeline: React.FC<TimelineProps> = ({
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
 
+    const trackHeight = 70;
+    const dropTrackIndex =
+      dropTarget?.trackId != null
+        ? tracks.findIndex((t) => t.id === dropTarget.trackId)
+        : -1;
+    const dropTrackTop =
+      dropTrackIndex >= 0
+        ? 40 + dropTrackIndex * trackHeight
+        : dragInfo.currentY - dragInfo.offsetY;
+
     const leftPos =
-      dropTarget && dropTarget.trackType === draggedBlock.type
+      dropTarget?.trackId != null && dropTarget?.position != null
         ? timelineRef.current.getBoundingClientRect().left +
           TIMELINE_PADDING +
           dropTarget.position * scale
@@ -681,7 +671,7 @@ const Timeline: React.FC<TimelineProps> = ({
         style={{
           position: "fixed",
           left: leftPos,
-          top: dragInfo.currentY - dragInfo.offsetY,
+          top: dropTrackTop,
           width: `${draggedBlock.duration * scale}px`,
           height: "50px",
           backgroundColor: bgColor,
@@ -702,8 +692,6 @@ const Timeline: React.FC<TimelineProps> = ({
     );
   };
 
-  const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
-
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (mode === "hand" && !isSplitEnabled) {
       const target = e.target as HTMLElement;
@@ -714,20 +702,17 @@ const Timeline: React.FC<TimelineProps> = ({
   };
 
   useEffect(() => {
-    return () => {
-      window.removeEventListener("mousemove", handleDragging);
-      window.removeEventListener("mouseup", handleDragEnd);
-    };
-  }, []);
+    const handleMouseMove = (e: MouseEvent) => handleDragging(e);
+    const handleMouseUp = (e: MouseEvent) => handleDragEnd(e);
 
-  useEffect(() => {
     if (dragInfo) {
-      window.addEventListener("mousemove", handleDragging);
-      window.addEventListener("mouseup", handleDragEnd);
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
     }
+
     return () => {
-      window.removeEventListener("mousemove", handleDragging);
-      window.removeEventListener("mouseup", handleDragEnd);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [dragInfo, handleDragging, handleDragEnd]);
 
@@ -748,19 +733,19 @@ const Timeline: React.FC<TimelineProps> = ({
         onClick={handleTimelineClick}
       >
         <TimeAxis totalTime={totalTime} />
-        {blockTypes.map((type) => {
-          const typeBlocks = blocks.filter((b) => b.type === type);
+        {tracks.map((track) => {
+          const trackBlocks = blocks.filter((b) => b.trackId === track.id);
           return (
             <BlockRow
-              key={type}
-              type={type}
-              blocks={typeBlocks}
+              key={track.id}
+              track={track}
+              blocks={trackBlocks}
               totalTime={totalTime}
               updateBlock={updateBlock}
               onDragStart={handleDragStart}
-              isDropTarget={dropTarget?.trackType === type}
+              isDropTarget={dropTarget?.trackId === track.id}
               dropPosition={
-                dropTarget?.trackType === type ? dropTarget.position : null
+                dropTarget?.trackId === track.id ? dropTarget.position : null
               }
               onSplitBlock={handleSplitBlock}
               isSplitEnabled={isSplitEnabled}
@@ -774,7 +759,7 @@ const Timeline: React.FC<TimelineProps> = ({
           <div
             style={{
               position: "absolute",
-              left: `${snapGuidePosition * scale + TIMELINE_PADDING}px`,
+              left: `${(snapGuidePosition * scale) + TIMELINE_PADDING}px`,
               top: 0,
               height: "100%",
               width: "2px",
@@ -799,6 +784,11 @@ const Timeline: React.FC<TimelineProps> = ({
             <h3>선택된 블록 정보</h3>
             <p>ID: {focusedBlock.id}</p>
             <p>타입: {focusedBlock.type}</p>
+            <p>
+              트랙:{" "}
+              {tracks.find((t) => t.id === focusedBlock.trackId)?.label ||
+                "Unknown"}
+            </p>
             <p>시작 시간: {focusedBlock.starttime}초</p>
             <p>길이: {focusedBlock.duration}초</p>
             <p>
