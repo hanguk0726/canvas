@@ -327,7 +327,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
           />
         );
       })}
-      {isDropTarget && dropPosition !== null && (
+      {/* {isDropTarget && dropPosition !== null && ( // render drop point
         <div
           style={{
             position: "absolute",
@@ -338,7 +338,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
             zIndex: "10",
           }}
         />
-      )}
+      )} */}
     </div>
   );
 };
@@ -621,7 +621,7 @@ const Timeline: React.FC<TimelineProps> = ({
       draggedBlock.type === "video"
         ? "rgba(0, 0, 255, 0.8)"
         : draggedBlock.type === "audio"
-        ? "rgba(0, 255, 0, 0.8)"
+        ? "rgba(21, 131, 21, 0.8)"
         : draggedBlock.type === "shape"
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
