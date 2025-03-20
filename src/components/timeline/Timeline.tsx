@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
-const scale = 10; // 1초당 10px
+const TIMELINE_PADDING = 20;
+const scale = 10; // 1초당 10px (렌더)
 
 // 블록 인터페이스
 interface Block {
@@ -346,6 +347,16 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
 
     return newPosition;
   };
+  // 타임라인 내 상대적 시간 위치를 계산하는 유틸리티 함수
+  const getTimePositionFromClientX = (
+    clientX: number,
+    offsetX: number,
+    timelineRect: DOMRect
+  ): number => {
+    const previewLeftPos = clientX - offsetX; // 미리보기의 left edge
+    const relativeX = previewLeftPos - timelineRect.left - TIMELINE_PADDING; // 패딩 보정
+    return Math.max(0, relativeX / scale); // 시간 단위로 변환
+  };
 
   // 드래그 시작
   const handleDragStart = (
@@ -376,7 +387,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
 
   const handleDragging = useCallback(
     (e: MouseEvent) => {
-      if (!dragInfo || !dragInfo.blockId) return;
+      if (!dragInfo || !dragInfo.blockId || !timelineRef.current) return;
 
       setDragInfo((prev) => ({
         ...prev!,
@@ -384,67 +395,56 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
         currentY: e.clientY,
       }));
 
-      if (timelineRef.current) {
-        const timelineRect = timelineRef.current.getBoundingClientRect();
-        const relativeY = e.clientY - timelineRect.top;
-        const relativeX = e.clientX - timelineRect.left;
-        const timePosition = Math.max(0, relativeX / scale);
+      const timelineRect = timelineRef.current.getBoundingClientRect();
+      const relativeY = e.clientY - timelineRect.top;
+      const timePosition = getTimePositionFromClientX(
+        e.clientX,
+        dragInfo.offsetX,
+        timelineRect
+      );
 
-        const trackHeight = 70;
-        const trackIndex = Math.floor((relativeY - 40) / trackHeight);
-        const blockTypes: Block["type"][] = [
-          "video",
-          "audio",
-          "shape",
-          "effect",
-        ];
-        const targetTrackType =
-          trackIndex >= 0 && trackIndex < blockTypes.length
-            ? blockTypes[trackIndex]
-            : null;
+      const trackHeight = 70;
+      const trackIndex = Math.floor((relativeY - 40) / trackHeight);
+      const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
+      const targetTrackType =
+        trackIndex >= 0 && trackIndex < blockTypes.length
+          ? blockTypes[trackIndex]
+          : null;
 
-        // 원래 타입과 동일한 트랙에만 드롭 가능하도록 제한
-        const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
-        if (
-          targetTrackType &&
-          draggedBlock &&
-          targetTrackType === draggedBlock.type
-        ) {
-          setDropTarget({
-            trackType: targetTrackType,
-            position: Math.round(timePosition * 10) / 10,
-          });
-        } else {
-          setDropTarget(null); // 다른 타입 트랙이면 드롭 타겟 없음
-        }
+      const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
+      if (
+        targetTrackType &&
+        draggedBlock &&
+        targetTrackType === draggedBlock.type
+      ) {
+        setDropTarget({
+          trackType: targetTrackType,
+          position: Math.round(timePosition * 10) / 10,
+        });
+      } else {
+        setDropTarget(null);
       }
     },
     [dragInfo, blocks]
   );
-
   const handleDragEnd = useCallback(
     (e: MouseEvent) => {
       if (dragInfo?.blockId && dropTarget?.trackType) {
         const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
         if (draggedBlock && draggedBlock.type === dropTarget.trackType) {
-          // 동일 타입 확인
           const newPosition = calculateBlockPosition(
             dropTarget.trackType,
-            dropTarget.position,
+            dropTarget.position, // 미리보기의 left edge 기반 위치
             dragInfo.blockId,
             draggedBlock.duration
           );
-
           setBlocks((prev) =>
             prev.map((b) =>
-              b.id === dragInfo.blockId
-                ? { ...b, starttime: newPosition } // 타입은 변경하지 않음
-                : b
+              b.id === dragInfo.blockId ? { ...b, starttime: newPosition } : b
             )
           );
         }
       }
-
       setDragInfo(null);
       setDropTarget(null);
       window.removeEventListener("mousemove", handleDragging);
@@ -453,10 +453,8 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     [dragInfo, dropTarget, blocks]
   );
 
-  // 드래그 미리보기 렌더링 (오프셋을 적용하여 x, y 모두 계산)
   const renderDragPreview = () => {
-    if (!dragInfo?.blockId) return null;
-
+    if (!dragInfo?.blockId || !timelineRef.current) return null;
     const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
     if (!draggedBlock) return null;
 
@@ -469,7 +467,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
 
-    const leftPos = dragInfo.currentX - dragInfo.offsetX;
+    const leftPos = dragInfo.currentX - dragInfo.offsetX; // 미리보기의 left edge
     const topPos = dragInfo.currentY - dragInfo.offsetY;
 
     return (
@@ -497,7 +495,6 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
       </div>
     );
   };
-
   const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
 
   useEffect(() => {
@@ -527,7 +524,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
         overflowX: "auto",
         overflowY: "visible",
         width: "100%",
-        padding: "20px",
+        padding: `${TIMELINE_PADDING}px`, // 상수 사용
         minHeight: "400px",
       }}
     >
