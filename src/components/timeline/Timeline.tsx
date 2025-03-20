@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 const scale = 10; // 1초당 10px
 
@@ -42,6 +42,13 @@ interface BlockComponentProps {
   block: Block;
   boundaries: { min: number; max: number }; // 이동 및 크기 조절 제한 (초 단위)
   updateBlock: (updated: Block) => void;
+  onDragStart: (
+    blockId: number,
+    trackType: Block["type"],
+    clientX: number,
+    clientY: number,
+    blockWidth: number
+  ) => void;
 }
 
 // 블록 컴포넌트 (드래그, 리사이즈 직접 구현)
@@ -49,41 +56,25 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   block,
   boundaries,
   updateBlock,
+  onDragStart,
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
-  const dragData = useRef<{ startX: number; origStart: number } | null>(null);
   const resizeData = useRef<{ startX: number; origDuration: number } | null>(
     null
   );
 
-  // 드래그 시작
-  const onDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
     e.stopPropagation();
-    dragData.current = { startX: e.clientX, origStart: block.starttime };
-    window.addEventListener("mousemove", onDragging);
-    window.addEventListener("mouseup", onDragMouseUp);
-  };
-
-  // 드래그 중
-  const onDragging = (e: MouseEvent) => {
-    if (!dragData.current) return;
-    const deltaSeconds = (e.clientX - dragData.current.startX) / scale;
-    let newStart = dragData.current.origStart + deltaSeconds;
-    // 충돌 방지: 현재 행의 최소/최대 제한 적용
-    newStart = Math.max(boundaries.min, newStart);
-    newStart = Math.min(boundaries.max - block.duration, newStart);
-    updateBlock({ ...block, starttime: Math.round(newStart * 100) / 100 });
-  };
-
-  // 드래그 종료
-  const onDragMouseUp = () => {
-    dragData.current = null;
-    window.removeEventListener("mousemove", onDragging);
-    window.removeEventListener("mouseup", onDragMouseUp);
+    if (blockRef.current) {
+      const rect = blockRef.current.getBoundingClientRect();
+      onDragStart(block.id, block.type, e.clientX, e.clientY, rect.width);
+    }
   };
 
   // 리사이즈 시작
   const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
     e.stopPropagation();
     resizeData.current = { startX: e.clientX, origDuration: block.duration };
     window.addEventListener("mousemove", onResizing);
@@ -131,8 +122,25 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
         padding: "4px",
         boxSizing: "border-box",
         cursor: "grab",
+        userSelect: "none",
+        zIndex: 1,
+        touchAction: "none", // 모바일 지원 추가
       }}
-      onMouseDown={onDragMouseDown}
+      onMouseDown={handleDragStart}
+      // 터치 이벤트 추가
+      onTouchStart={(e) => {
+        const touch = e.touches[0];
+        if (blockRef.current) {
+          const rect = blockRef.current.getBoundingClientRect();
+          onDragStart(
+            block.id,
+            block.type,
+            touch.clientX,
+            touch.clientY,
+            rect.width
+          );
+        }
+      }}
     >
       <div>{block.type}</div>
       {/* 리사이즈 핸들 (오른쪽) */}
@@ -143,7 +151,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
           top: 0,
           width: "10px",
           height: "100%",
-          backgroundColor: "red",
+          backgroundColor: "rgba(255, 0, 0, 0.6)",
           cursor: "ew-resize",
         }}
         onMouseDown={onResizeMouseDown}
@@ -157,6 +165,15 @@ interface BlockRowProps {
   blocks: Block[];
   totalTime: number;
   updateBlock: (updated: Block) => void;
+  onDragStart: (
+    blockId: number,
+    trackType: Block["type"],
+    clientX: number,
+    clientY: number,
+    blockWidth: number
+  ) => void;
+  isDropTarget: boolean;
+  dropPosition: number | null;
 }
 
 const BlockRow: React.FC<BlockRowProps> = ({
@@ -164,17 +181,24 @@ const BlockRow: React.FC<BlockRowProps> = ({
   blocks,
   totalTime,
   updateBlock,
+  onDragStart,
+  isDropTarget,
+  dropPosition,
 }) => {
   // 행 내 블록들을 시작 시간 순 정렬
   const sortedBlocks = [...blocks].sort((a, b) => a.starttime - b.starttime);
+  const rowRef = useRef<HTMLDivElement>(null);
 
   return (
     <div
+      ref={rowRef}
       style={{
         position: "relative",
         height: "60px",
         borderBottom: "1px solid #ddd",
         marginBottom: "10px",
+        backgroundColor: isDropTarget ? "rgba(0, 255, 0, 0.1)" : "transparent",
+        transition: "background-color 0.2s",
       }}
     >
       <div
@@ -207,9 +231,22 @@ const BlockRow: React.FC<BlockRowProps> = ({
             block={block}
             boundaries={boundaries}
             updateBlock={updateBlock}
+            onDragStart={onDragStart}
           />
         );
       })}
+      {isDropTarget && dropPosition !== null && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${dropPosition * scale}px`,
+            height: "50px",
+            width: "2px",
+            backgroundColor: "green",
+            zIndex: 10,
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -226,21 +263,237 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     { id: 4, type: "video", duration: 6, starttime: 28 },
   ];
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
+  const [dragInfo, setDragInfo] = useState<{
+    blockId: number | null;
+    originalType: Block["type"] | null;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    blockWidth: number;
+  } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    trackType: Block["type"] | null;
+    position: number;
+  } | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
-  // 특정 블록 업데이트 (드래그나 리사이즈로 변경된 값 적용)
+  // 블록 업데이트 (리사이즈)
   const updateBlock = (updated: Block) => {
     setBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
   };
 
+  // 블록 위치 계산 (충돌 방지)
+  const calculateBlockPosition = (
+    trackType: Block["type"],
+    position: number,
+    blockId: number,
+    blockDuration: number
+  ) => {
+    // 같은 트랙의 다른 블록들
+    const sameTrackBlocks = blocks
+      .filter((b) => b.type === trackType && b.id !== blockId)
+      .sort((a, b) => a.starttime - b.starttime);
+
+    // 초기 위치
+    let newPosition = Math.max(0, position);
+
+    // 다른 블록과 겹치는지 확인
+    for (const block of sameTrackBlocks) {
+      // 블록의 끝 위치
+      const blockEnd = block.starttime + block.duration;
+
+      // 새 위치가 기존 블록의 중간에 있으면
+      if (newPosition >= block.starttime && newPosition < blockEnd) {
+        // 우선 기존 블록 뒤로 배치
+        newPosition = blockEnd;
+      }
+      // 새 위치와 블록 길이가 기존 블록과 겹치면
+      else if (
+        newPosition < block.starttime &&
+        newPosition + blockDuration > block.starttime
+      ) {
+        // 기존 블록 앞에 배치 (충분한 공간이 있으면)
+        if (block.starttime >= blockDuration) {
+          newPosition = block.starttime - blockDuration;
+        }
+        // 아니면 뒤에 배치
+        else {
+          newPosition = blockEnd;
+        }
+      }
+    }
+
+    return newPosition;
+  };
+
+  // 드래그 시작
+  const handleDragStart = (
+    blockId: number,
+    trackType: Block["type"],
+    clientX: number,
+    clientY: number,
+    blockWidth: number
+  ) => {
+    setDragInfo({
+      blockId,
+      originalType: trackType,
+      startX: clientX,
+      startY: clientY,
+      currentX: clientX,
+      currentY: clientY,
+      blockWidth: blockWidth,
+    });
+
+    // 글로벌 이벤트 리스너 추가
+    window.addEventListener("mousemove", handleDragging);
+    window.addEventListener("mouseup", handleDragEnd);
+  };
+
+  // 드래그 중
+  const handleDragging = useCallback(
+    (e: MouseEvent) => {
+      if (!dragInfo || !dragInfo.blockId) return;
+
+      setDragInfo((prev) => ({
+        ...prev!,
+        currentX: e.clientX,
+        currentY: e.clientY,
+      }));
+
+      if (timelineRef.current) {
+        const timelineRect = timelineRef.current.getBoundingClientRect();
+        const relativeY = e.clientY - timelineRect.top;
+        const relativeX = e.clientX - timelineRect.left;
+        const timePosition = Math.max(0, relativeX / scale);
+
+        const trackHeight = 70;
+        const trackIndex = Math.floor((relativeY - 40) / trackHeight);
+        const blockTypes: Block["type"][] = [
+          "video",
+          "audio",
+          "shape",
+          "effect",
+        ];
+        const targetTrackType =
+          trackIndex >= 0 && trackIndex < blockTypes.length
+            ? blockTypes[trackIndex]
+            : null;
+
+        setDropTarget({
+          trackType: targetTrackType,
+          position: Math.round(timePosition * 10) / 10,
+        });
+      }
+    },
+    [dragInfo]
+  );
+  // 드래그 종료
+  const handleDragEnd = useCallback(
+    (e: MouseEvent) => {
+      if (dragInfo?.blockId && dropTarget?.trackType) {
+        const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
+        if (draggedBlock) {
+          const newPosition = calculateBlockPosition(
+            dropTarget.trackType,
+            dropTarget.position,
+            dragInfo.blockId,
+            draggedBlock.duration
+          );
+
+          setBlocks((prev) =>
+            prev.map((b) =>
+              b.id === dragInfo.blockId
+                ? {
+                    ...b,
+                    type: dropTarget.trackType as Block["type"],
+                    starttime: newPosition,
+                  }
+                : b
+            )
+          );
+        }
+      }
+
+      setDragInfo(null);
+      setDropTarget(null);
+      window.removeEventListener("mousemove", handleDragging);
+      window.removeEventListener("mouseup", handleDragEnd);
+    },
+    [dragInfo, dropTarget, blocks]
+  );
+
   const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
 
+  // 드래그 중인 블록에 대한 미리보기 렌더링
+  const renderDragPreview = () => {
+    if (!dragInfo?.blockId) return null;
+
+    const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
+    if (!draggedBlock) return null;
+
+    const bgColor =
+      draggedBlock.type === "video"
+        ? "blue"
+        : draggedBlock.type === "audio"
+        ? "green"
+        : draggedBlock.type === "shape"
+        ? "purple"
+        : "orange";
+
+    return (
+      <div
+        style={{
+          position: "fixed",
+          left: dragInfo.currentX - (draggedBlock.duration * scale) / 2,
+          top: dragInfo.currentY - 25,
+          width: `${draggedBlock.duration * scale}px`,
+          height: "50px",
+          backgroundColor: `${bgColor}99`, // 반투명
+          borderRadius: "4px",
+          padding: "4px",
+          boxSizing: "border-box",
+          pointerEvents: "none",
+          zIndex: 1000,
+          opacity: 0.7,
+          boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+          transform: "rotate(2deg)",
+          color: "white",
+        }}
+      >
+        {draggedBlock.type}
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    // 컴포넌트 언마운트 시 이벤트 리스너 제거
+    return () => {
+      window.removeEventListener("mousemove", handleDragging);
+      window.removeEventListener("mouseup", handleDragEnd);
+    };
+  }, []);
+  useEffect(() => {
+    if (dragInfo) {
+      window.addEventListener("mousemove", handleDragging);
+      window.addEventListener("mouseup", handleDragEnd);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleDragging);
+      window.removeEventListener("mouseup", handleDragEnd);
+    };
+  }, [dragInfo, handleDragging, handleDragEnd]);
   return (
     <div
+      ref={timelineRef}
       style={{
         position: "relative",
         overflowX: "auto",
+        overflowY: "visible",
         width: "100%",
         padding: "20px",
+        minHeight: "400px",
       }}
     >
       <TimeAxis totalTime={totalTime} />
@@ -253,9 +506,15 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
             blocks={typeBlocks}
             totalTime={totalTime}
             updateBlock={updateBlock}
+            onDragStart={handleDragStart}
+            isDropTarget={dropTarget?.trackType === type}
+            dropPosition={
+              dropTarget?.trackType === type ? dropTarget.position : null
+            }
           />
         );
       })}
+      {renderDragPreview()}
     </div>
   );
 };
