@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 const TIMELINE_PADDING = 20;
 const scale = 10;
 
-interface Block {
+export interface Block {
   id: number;
   type: "video" | "audio" | "shape" | "effect";
   duration: number;
@@ -52,6 +52,8 @@ interface BlockComponentProps {
   ) => void;
   onSplitBlock: (blockId: number, splitTime: number) => void;
   isSplitEnabled: boolean;
+  isFocused: boolean;
+  onFocus: (blockId: number) => void;
 }
 
 const BlockComponent: React.FC<BlockComponentProps> = ({
@@ -61,6 +63,8 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   onDragStart,
   onSplitBlock,
   isSplitEnabled,
+  isFocused,
+  onFocus,
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
   const resizeData = useRef<{ startX: number; origDuration: number } | null>(
@@ -88,7 +92,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   };
 
   const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isSplitEnabled) return; // 쪼개기 모드일 때 리사이즈 비활성화
+    if (isSplitEnabled) return;
     e.preventDefault();
     e.stopPropagation();
     resizeData.current = { startX: e.clientX, origDuration: block.duration };
@@ -135,6 +139,11 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     }
   };
 
+  const handleFocus = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (!isSplitEnabled) onFocus(block.id); // 쪼개기 모드가 아닐 때만 포커스
+  };
+
   const bgColor =
     block.type === "video"
       ? "blue"
@@ -161,11 +170,13 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
         userSelect: "none",
         zIndex: 1,
         touchAction: "none",
+        border: isFocused ? "2px solid yellow" : "none", // 포커스 시 노란 테두리
       }}
       onMouseDown={handleDragStart}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onClick={handleSplit}
+      onDoubleClick={handleFocus} // 더블클릭으로 포커스
       onTouchStart={(e) => {
         const touch = e.touches[0];
         if (blockRef.current) {
@@ -233,6 +244,8 @@ interface BlockRowProps {
   dropPosition: number | null;
   onSplitBlock: (blockId: number, splitTime: number) => void;
   isSplitEnabled: boolean;
+  focusedBlockId: number | null;
+  onFocus: (blockId: number) => void;
 }
 
 const BlockRow: React.FC<BlockRowProps> = ({
@@ -245,6 +258,8 @@ const BlockRow: React.FC<BlockRowProps> = ({
   dropPosition,
   onSplitBlock,
   isSplitEnabled,
+  focusedBlockId,
+  onFocus,
 }) => {
   const sortedBlocks = [...blocks].sort((a, b) => a.starttime - b.starttime);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -293,6 +308,8 @@ const BlockRow: React.FC<BlockRowProps> = ({
             onDragStart={onDragStart}
             onSplitBlock={onSplitBlock}
             isSplitEnabled={isSplitEnabled}
+            isFocused={block.id === focusedBlockId}
+            onFocus={onFocus}
           />
         );
       })}
@@ -315,16 +332,20 @@ const BlockRow: React.FC<BlockRowProps> = ({
 interface TimelineProps {
   totalTime: number;
   isSplitEnabled: boolean;
+  blocks: Block[];
+  setBlocks: React.Dispatch<React.SetStateAction<Block[]>>;
+  focusedBlockId: number | null;
+  setFocusedBlockId: (id: number | null) => void;
 }
 
-const Timeline: React.FC<TimelineProps> = ({ totalTime, isSplitEnabled }) => {
-  const initialBlocks: Block[] = [
-    { id: 1, type: "video", duration: 10, starttime: 0 },
-    { id: 2, type: "audio", duration: 5, starttime: 12 },
-    { id: 3, type: "shape", duration: 8, starttime: 18 },
-    { id: 4, type: "video", duration: 6, starttime: 28 },
-  ];
-  const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
+const Timeline: React.FC<TimelineProps> = ({
+  totalTime,
+  isSplitEnabled,
+  blocks,
+  setBlocks,
+  focusedBlockId,
+  setFocusedBlockId,
+}) => {
   const [dragInfo, setDragInfo] = useState<{
     blockId: number | null;
     originalType: Block["type"] | null;
@@ -508,7 +529,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime, isSplitEnabled }) => {
       window.removeEventListener("mousemove", handleDragging);
       window.removeEventListener("mouseup", handleDragEnd);
     },
-    [dragInfo, dropTarget, blocks]
+    [dragInfo, dropTarget, blocks, setBlocks]
   );
 
   const renderDragPreview = () => {
@@ -574,39 +595,71 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime, isSplitEnabled }) => {
     };
   }, [dragInfo, handleDragging, handleDragEnd]);
 
+  const focusedBlock = blocks.find((b) => b.id === focusedBlockId);
+
   return (
-    <div
-      ref={timelineRef}
-      style={{
-        position: "relative",
-        overflowX: "auto",
-        overflowY: "visible",
-        width: "100%",
-        padding: `${TIMELINE_PADDING}px`,
-        minHeight: "400px",
-      }}
-    >
-      <TimeAxis totalTime={totalTime} />
-      {blockTypes.map((type) => {
-        const typeBlocks = blocks.filter((b) => b.type === type);
-        return (
-          <BlockRow
-            key={type}
-            type={type}
-            blocks={typeBlocks}
-            totalTime={totalTime}
-            updateBlock={updateBlock}
-            onDragStart={handleDragStart}
-            isDropTarget={dropTarget?.trackType === type}
-            dropPosition={
-              dropTarget?.trackType === type ? dropTarget.position : null
-            }
-            onSplitBlock={handleSplitBlock}
-            isSplitEnabled={isSplitEnabled}
-          />
-        );
-      })}
-      {renderDragPreview()}
+    <div>
+      <div
+        ref={timelineRef}
+        style={{
+          position: "relative",
+          overflowX: "auto",
+          overflowY: "visible",
+          width: "100%",
+          padding: `${TIMELINE_PADDING}px`,
+          minHeight: "400px",
+        }}
+      >
+        <TimeAxis totalTime={totalTime} />
+        {blockTypes.map((type) => {
+          const typeBlocks = blocks.filter((b) => b.type === type);
+          return (
+            <BlockRow
+              key={type}
+              type={type}
+              blocks={typeBlocks}
+              totalTime={totalTime}
+              updateBlock={updateBlock}
+              onDragStart={handleDragStart}
+              isDropTarget={dropTarget?.trackType === type}
+              dropPosition={
+                dropTarget?.trackType === type ? dropTarget.position : null
+              }
+              onSplitBlock={handleSplitBlock}
+              isSplitEnabled={isSplitEnabled}
+              focusedBlockId={focusedBlockId}
+              onFocus={setFocusedBlockId}
+            />
+          );
+        })}
+        {renderDragPreview()}
+      </div>
+      {/* 상세 정보 섹션 */}
+      <div
+        style={{
+          marginTop: "20px",
+          padding: "10px",
+          border: "1px solid #ddd",
+          borderRadius: "4px",
+          backgroundColor: "#f9f9f9",
+        }}
+      >
+        {focusedBlock ? (
+          <div>
+            <h3>선택된 블록 정보</h3>
+            <p>ID: {focusedBlock.id}</p>
+            <p>타입: {focusedBlock.type}</p>
+            <p>시작 시간: {focusedBlock.starttime}초</p>
+            <p>길이: {focusedBlock.duration}초</p>
+            <p>
+              끝 시간:{" "}
+              {(focusedBlock.starttime + focusedBlock.duration).toFixed(1)}초
+            </p>
+          </div>
+        ) : (
+          <p>블록을 더블클릭하여 선택하세요.</p>
+        )}
+      </div>
     </div>
   );
 };
