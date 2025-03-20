@@ -54,6 +54,7 @@ interface BlockComponentProps {
   isSplitEnabled: boolean;
   isFocused: boolean;
   onFocus: (blockId: number) => void;
+  mode: "select" | "hand";
 }
 
 const BlockComponent: React.FC<BlockComponentProps> = ({
@@ -65,6 +66,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   isSplitEnabled,
   isFocused,
   onFocus,
+  mode,
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
   const resizeData = useRef<{ startX: number; origDuration: number } | null>(
@@ -73,6 +75,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   const [splitPreview, setSplitPreview] = useState<number | null>(null);
 
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (mode === "hand" || isSplitEnabled) return; // 핸드 모드나 쪼개기 모드에서는 드래그 비활성화
     e.preventDefault();
     e.stopPropagation();
     if (blockRef.current) {
@@ -92,7 +95,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   };
 
   const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isSplitEnabled) return;
+    if (isSplitEnabled || mode === "hand") return; // 쪼개기 모드나 핸드 모드에서는 리사이즈 비활성화
     e.preventDefault();
     e.stopPropagation();
     resizeData.current = { startX: e.clientX, origDuration: block.duration };
@@ -131,17 +134,14 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     if (isSplitEnabled) setSplitPreview(null);
   };
 
-  const handleSplit = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
     if (isSplitEnabled && splitPreview) {
       onSplitBlock(block.id, splitPreview);
       setSplitPreview(null);
+    } else if (mode === "hand" && !isSplitEnabled) {
+      onFocus(block.id); // 핸드 모드에서만 포커스 설정
     }
-  };
-
-  const handleFocus = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    if (!isSplitEnabled) onFocus(block.id); // 쪼개기 모드가 아닐 때만 포커스
   };
 
   const bgColor =
@@ -152,6 +152,12 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       : block.type === "shape"
       ? "purple"
       : "orange";
+
+  const cursorStyle = isSplitEnabled
+    ? "crosshair"
+    : mode === "select"
+    ? "pointer"
+    : "grab";
 
   return (
     <div
@@ -166,18 +172,18 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
         borderRadius: "4px",
         padding: "4px",
         boxSizing: "border-box",
-        cursor: isSplitEnabled ? "crosshair" : "grab",
+        cursor: cursorStyle,
         userSelect: "none",
         zIndex: 1,
         touchAction: "none",
-        border: isFocused ? "2px solid yellow" : "none", // 포커스 시 노란 테두리
+        border: isFocused ? "2px solid yellow" : "none",
       }}
       onMouseDown={handleDragStart}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      onClick={handleSplit}
-      onDoubleClick={handleFocus} // 더블클릭으로 포커스
+      onClick={handleClick} // 단일 클릭으로 처리
       onTouchStart={(e) => {
+        if (mode === "hand" || isSplitEnabled) return;
         const touch = e.touches[0];
         if (blockRef.current) {
           const rect = blockRef.current.getBoundingClientRect();
@@ -215,10 +221,12 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
           top: 0,
           width: "10px",
           height: "100%",
-          backgroundColor: isSplitEnabled
-            ? "rgba(150, 150, 150, 0.6)"
-            : "rgba(255, 0, 0, 0.6)",
-          cursor: isSplitEnabled ? "not-allowed" : "ew-resize",
+          backgroundColor:
+            isSplitEnabled || mode === "hand"
+              ? "rgba(150, 150, 150, 0.6)"
+              : "rgba(255, 0, 0, 0.6)",
+          cursor:
+            isSplitEnabled || mode === "hand" ? "not-allowed" : "ew-resize",
         }}
         onMouseDown={onResizeMouseDown}
       ></div>
@@ -246,6 +254,7 @@ interface BlockRowProps {
   isSplitEnabled: boolean;
   focusedBlockId: number | null;
   onFocus: (blockId: number) => void;
+  mode: "select" | "hand";
 }
 
 const BlockRow: React.FC<BlockRowProps> = ({
@@ -260,6 +269,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
   isSplitEnabled,
   focusedBlockId,
   onFocus,
+  mode,
 }) => {
   const sortedBlocks = [...blocks].sort((a, b) => a.starttime - b.starttime);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -310,6 +320,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
             isSplitEnabled={isSplitEnabled}
             isFocused={block.id === focusedBlockId}
             onFocus={onFocus}
+            mode={mode}
           />
         );
       })}
@@ -336,6 +347,7 @@ interface TimelineProps {
   setBlocks: React.Dispatch<React.SetStateAction<Block[]>>;
   focusedBlockId: number | null;
   setFocusedBlockId: (id: number | null) => void;
+  mode: "select" | "hand";
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -345,6 +357,7 @@ const Timeline: React.FC<TimelineProps> = ({
   setBlocks,
   focusedBlockId,
   setFocusedBlockId,
+  mode,
 }) => {
   const [dragInfo, setDragInfo] = useState<{
     blockId: number | null;
@@ -629,12 +642,12 @@ const Timeline: React.FC<TimelineProps> = ({
               isSplitEnabled={isSplitEnabled}
               focusedBlockId={focusedBlockId}
               onFocus={setFocusedBlockId}
+              mode={mode}
             />
           );
         })}
         {renderDragPreview()}
       </div>
-      {/* 상세 정보 섹션 */}
       <div
         style={{
           marginTop: "20px",
@@ -657,7 +670,7 @@ const Timeline: React.FC<TimelineProps> = ({
             </p>
           </div>
         ) : (
-          <p>블록을 더블클릭하여 선택하세요.</p>
+          <p>핸드 모드에서 블록을 클릭하여 선택하세요.</p>
         )}
       </div>
     </div>

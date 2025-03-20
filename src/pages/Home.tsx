@@ -11,24 +11,23 @@ const Home: React.FC = () => {
     { id: 4, type: "video", duration: 6, starttime: 28 },
   ]);
   const [focusedBlockId, setFocusedBlockId] = useState<number | null>(null);
+  const [mode, setMode] = useState<"select" | "hand">("select");
 
-  // 블록 추가
   const addBlock = () => {
     const newId = blocks.length ? Math.max(...blocks.map((b) => b.id)) + 1 : 1;
     const newBlock: Block = {
       id: newId,
-      type: "video", // 기본 타입, 필요 시 선택 UI 추가 가능
-      duration: 5, // 기본 길이
-      starttime: 0, // 기본 시작 시간
+      type: "video",
+      duration: 5,
+      starttime: 0,
     };
     setBlocks((prev) => [...prev, newBlock]);
   };
 
-  // 블록 삭제
   const deleteBlock = () => {
-    if (focusedBlockId === null) return;
+    if (focusedBlockId === null || mode !== "hand") return; // hand 모드에서만 삭제 가능
     setBlocks((prev) => prev.filter((b) => b.id !== focusedBlockId));
-    setFocusedBlockId(null); // 삭제 후 포커스 해제
+    setFocusedBlockId(null);
   };
 
   return (
@@ -68,16 +67,34 @@ const Home: React.FC = () => {
           </button>
           <button
             onClick={deleteBlock}
-            disabled={focusedBlockId === null}
+            disabled={focusedBlockId === null || mode !== "hand"}
             style={{
               padding: "5px 10px",
-              backgroundColor: focusedBlockId === null ? "#cccccc" : "#f44336",
+              backgroundColor:
+                focusedBlockId === null || mode !== "hand"
+                  ? "#cccccc"
+                  : "#f44336",
               color: "white",
               borderRadius: "4px",
-              cursor: focusedBlockId === null ? "not-allowed" : "pointer",
+              cursor:
+                focusedBlockId === null || mode !== "hand"
+                  ? "not-allowed"
+                  : "pointer",
             }}
           >
             블록 삭제
+          </button>
+          <button
+            onClick={() => setMode(mode === "select" ? "hand" : "select")}
+            style={{
+              padding: "5px 10px",
+              backgroundColor: mode === "select" ? "#2196f3" : "#ff9800",
+              color: "white",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+          >
+            {mode === "select" ? "핸드 모드" : "선택 모드"}
           </button>
         </div>
       </div>
@@ -88,6 +105,7 @@ const Home: React.FC = () => {
         setBlocks={setBlocks}
         focusedBlockId={focusedBlockId}
         setFocusedBlockId={setFocusedBlockId}
+        mode={mode}
       />
     </div>
   );
