@@ -461,7 +461,6 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
           zIndex: 1000,
           opacity: 0.9, // 가시성 향상
           boxShadow: "0 0 10px rgba(0,0,0,0.5)", // 쉐도우 유지
-          transform: "rotate(2deg)",
           color: "white",
           fontWeight: "bold", // 텍스트 가독성 향상
           textShadow: "1px 1px 2px rgba(0,0,0,0.5)", // 텍스트 그림자 추가
