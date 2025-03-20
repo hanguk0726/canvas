@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 
 const TIMELINE_PADDING = 20;
 const scale = 10;
+const snapThreshold = 2;
 
 export interface Block {
   id: number;
@@ -135,12 +136,12 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   };
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation(); // 이벤트 버블링 방지
+    e.stopPropagation();
     if (isSplitEnabled && splitPreview) {
       onSplitBlock(block.id, splitPreview);
       setSplitPreview(null);
     } else if (mode === "hand" && !isSplitEnabled) {
-      onFocus(block.id); // 블록 클릭 시 포커스 설정
+      onFocus(block.id);
     }
   };
 
@@ -455,7 +456,7 @@ const Timeline: React.FC<TimelineProps> = ({
     clientY: number,
     blockWidth: number,
     offsetX: number,
-    offsetY: number
+    offsetY: number,
   ) => {
     const draggedBlock = blocks.find((b) => b.id === blockId);
     if (!draggedBlock) return;
@@ -508,9 +509,45 @@ const Timeline: React.FC<TimelineProps> = ({
         draggedBlock &&
         targetTrackType === draggedBlock.type
       ) {
+        // Snapping logic
+        const sameTrackBlocks = blocks
+          .filter(
+            (b) => b.type === targetTrackType && b.id !== dragInfo.blockId
+          )
+          .sort((a, b) => a.starttime - b.starttime);
+
+        let newPosition = timePosition;
+        const potentialStart = timePosition;
+        const potentialEnd = potentialStart + draggedBlock.duration;
+
+        for (const block of sameTrackBlocks) {
+          const blockStart = block.starttime;
+          const blockEnd = block.starttime + block.duration;
+
+          // Snap to end of another block
+          const distanceToEnd = Math.abs(potentialStart - blockEnd);
+          if (
+            distanceToEnd < snapThreshold &&
+            potentialStart > blockEnd - snapThreshold
+          ) {
+            newPosition = blockEnd;
+            break;
+          }
+
+          // Snap to start of another block
+          const distanceToStart = Math.abs(potentialEnd - blockStart);
+          if (
+            distanceToStart < snapThreshold &&
+            potentialEnd < blockStart + snapThreshold
+          ) {
+            newPosition = blockStart - draggedBlock.duration;
+            break;
+          }
+        }
+
         setDropTarget({
           trackType: targetTrackType,
-          position: Math.round(timePosition * 10) / 10,
+          position: Math.round(newPosition * 10) / 10,
         });
       } else {
         setDropTarget(null);
@@ -559,15 +596,20 @@ const Timeline: React.FC<TimelineProps> = ({
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
 
-    const leftPos = dragInfo.currentX - dragInfo.offsetX;
-    const topPos = dragInfo.currentY - dragInfo.offsetY;
+    // Use dropTarget position if available for snapping preview
+    const leftPos =
+      dropTarget && dropTarget.trackType === draggedBlock.type
+        ? timelineRef.current.getBoundingClientRect().left +
+          TIMELINE_PADDING +
+          dropTarget.position * scale
+        : dragInfo.currentX - dragInfo.offsetX;
 
     return (
       <div
         style={{
           position: "fixed",
           left: leftPos,
-          top: topPos,
+          top: dragInfo.currentY - dragInfo.offsetY,
           width: `${draggedBlock.duration * scale}px`,
           height: "50px",
           backgroundColor: bgColor,
@@ -590,11 +632,9 @@ const Timeline: React.FC<TimelineProps> = ({
 
   const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
 
-  // 타임라인 클릭 시 처리
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (mode === "hand" && !isSplitEnabled) {
       const target = e.target as HTMLElement;
-      // 클릭 대상이 블록이 아닌 경우 포커스 해제
       if (!target.closest(".block-component")) {
         setFocusedBlockId(null);
       }
@@ -633,7 +673,7 @@ const Timeline: React.FC<TimelineProps> = ({
           padding: `${TIMELINE_PADDING}px`,
           minHeight: "400px",
         }}
-        onClick={handleTimelineClick} // 타임라인 클릭 이벤트
+        onClick={handleTimelineClick}
       >
         <TimeAxis totalTime={totalTime} />
         {blockTypes.map((type) => {
