@@ -350,7 +350,6 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     window.addEventListener("mouseup", handleDragEnd);
   };
 
-  // 드래그 중
   const handleDragging = useCallback(
     (e: MouseEvent) => {
       if (!dragInfo || !dragInfo.blockId) return;
@@ -380,20 +379,31 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
             ? blockTypes[trackIndex]
             : null;
 
-        setDropTarget({
-          trackType: targetTrackType,
-          position: Math.round(timePosition * 10) / 10,
-        });
+        // 원래 타입과 동일한 트랙에만 드롭 가능하도록 제한
+        const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
+        if (
+          targetTrackType &&
+          draggedBlock &&
+          targetTrackType === draggedBlock.type
+        ) {
+          setDropTarget({
+            trackType: targetTrackType,
+            position: Math.round(timePosition * 10) / 10,
+          });
+        } else {
+          setDropTarget(null); // 다른 타입 트랙이면 드롭 타겟 없음
+        }
       }
     },
-    [dragInfo]
+    [dragInfo, blocks]
   );
-  // 드래그 종료
+
   const handleDragEnd = useCallback(
     (e: MouseEvent) => {
       if (dragInfo?.blockId && dropTarget?.trackType) {
         const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
-        if (draggedBlock) {
+        if (draggedBlock && draggedBlock.type === dropTarget.trackType) {
+          // 동일 타입 확인
           const newPosition = calculateBlockPosition(
             dropTarget.trackType,
             dropTarget.position,
@@ -404,11 +414,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
           setBlocks((prev) =>
             prev.map((b) =>
               b.id === dragInfo.blockId
-                ? {
-                    ...b,
-                    type: dropTarget.trackType as Block["type"],
-                    starttime: newPosition,
-                  }
+                ? { ...b, starttime: newPosition } // 타입은 변경하지 않음
                 : b
             )
           );
@@ -423,9 +429,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     [dragInfo, dropTarget, blocks]
   );
 
-  const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
-
-  // 드래그 중인 블록에 대한 미리보기 렌더링
+  // 드래그 미리보기 렌더링 수정
   const renderDragPreview = () => {
     if (!dragInfo?.blockId) return null;
 
@@ -434,37 +438,40 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
 
     const bgColor =
       draggedBlock.type === "video"
-        ? "blue"
+        ? "rgba(0, 0, 255, 0.8)" // 알파값 조정
         : draggedBlock.type === "audio"
-        ? "green"
+        ? "rgba(0, 255, 0, 0.8)"
         : draggedBlock.type === "shape"
-        ? "purple"
-        : "orange";
+        ? "rgba(128, 0, 128, 0.8)"
+        : "rgba(255, 165, 0, 0.8)";
 
     return (
       <div
         style={{
           position: "fixed",
-          left: dragInfo.currentX - (draggedBlock.duration * scale) / 2,
+          left: dragInfo.currentX, // 중앙 대신 시작 지점으로 변경
           top: dragInfo.currentY - 25,
           width: `${draggedBlock.duration * scale}px`,
           height: "50px",
-          backgroundColor: `${bgColor}99`, // 반투명
+          backgroundColor: bgColor,
           borderRadius: "4px",
           padding: "4px",
           boxSizing: "border-box",
           pointerEvents: "none",
           zIndex: 1000,
-          opacity: 0.7,
-          boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+          opacity: 0.9, // 가시성 향상
+          boxShadow: "0 0 10px rgba(0,0,0,0.5)", // 쉐도우 유지
           transform: "rotate(2deg)",
           color: "white",
+          fontWeight: "bold", // 텍스트 가독성 향상
+          textShadow: "1px 1px 2px rgba(0,0,0,0.5)", // 텍스트 그림자 추가
         }}
       >
         {draggedBlock.type}
       </div>
     );
   };
+  const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
 
   useEffect(() => {
     // 컴포넌트 언마운트 시 이벤트 리스너 제거
