@@ -481,120 +481,97 @@ const Timeline: React.FC<TimelineProps> = ({
     });
   };
 
-  const handleDragging = useCallback(
-    (e: MouseEvent) => {
-      if (!dragInfo || !timelineRef.current) return;
+ const handleDragging = useCallback(
+   (e: MouseEvent) => {
+     if (!dragInfo || !timelineRef.current) return;
 
-      setDragInfo((prev) => {
-        if (!prev) return null;
-        return { ...prev, currentX: e.clientX, currentY: e.clientY };
-      });
+     setDragInfo((prev) =>
+       prev ? { ...prev, currentX: e.clientX, currentY: e.clientY } : null
+     );
 
-      const timelineRect = timelineRef.current.getBoundingClientRect();
-      const relativeY = e.clientY - timelineRect.top;
-      const timePosition = getTimePositionFromClientX(
-        e.clientX,
-        dragInfo.offsetX,
-        timelineRect
-      );
+     const timelineRect = timelineRef.current.getBoundingClientRect();
+     const relativeY = e.clientY - timelineRect.top;
+     const timePosition = getTimePositionFromClientX(
+       e.clientX,
+       dragInfo.offsetX,
+       timelineRect
+     );
 
-      const trackHeight = 70; // Height of each track (60px) + margin (10px)
-      const trackIndex = Math.floor((relativeY - 40) / trackHeight);
-      const targetTrackId =
-        trackIndex >= 0 && trackIndex < tracks.length
-          ? tracks[trackIndex].id
-          : null;
+     const trackHeight = 70;
+     const trackIndex = Math.floor((relativeY - 40) / trackHeight);
+     const targetTrackId =
+       trackIndex >= 0 && trackIndex < tracks.length
+         ? tracks[trackIndex].id
+         : null;
 
-      const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
-      if (!draggedBlock || targetTrackId === null) {
-        setDropTarget(null);
-        setSnapGuidePosition(null);
-        return;
-      }
+     const draggedBlock = blocks.find((b) => b.id === dragInfo.blockId);
+     if (!draggedBlock || targetTrackId === null) {
+       setDropTarget(null);
+       setSnapGuidePosition(null);
+       return;
+     }
 
-      const sameTrackBlocks = blocks
-        .filter((b) => b.trackId === targetTrackId && b.id !== dragInfo.blockId)
-        .sort((a, b) => a.starttime - b.starttime);
-      const allOtherBlocks = blocks.filter(
-        (b) =>
-          b.id !== dragInfo.blockId &&
-          (b.trackId !== targetTrackId ||
-            (b.trackId === targetTrackId &&
-              (Math.abs(b.starttime - draggedBlock.starttime) > snapThreshold ||
-                Math.abs(
-                  b.starttime +
-                    b.duration -
-                    (draggedBlock.starttime + draggedBlock.duration)
-                ) > snapThreshold)))
-      );
+     const allBlocks = blocks.filter((b) => b.id !== dragInfo.blockId); // All blocks except the dragged one
 
-      let newPosition = timePosition;
-      let snapPosition: number | null = null;
-      const potentialStart = timePosition;
-      const potentialEnd = potentialStart + draggedBlock.duration;
+     let newPosition = timePosition;
+     let snapPosition: number | null = null;
+     const potentialStart = timePosition;
+     const potentialEnd = potentialStart + draggedBlock.duration;
 
-      for (const block of sameTrackBlocks) {
-        const blockStart = block.starttime;
-        const blockEnd = block.starttime + block.duration;
+     // Check snapping to all blocks (across tracks) for both start and end edges
+     for (const block of allBlocks) {
+       const blockStart = block.starttime;
+       const blockEnd = block.starttime + block.duration;
 
-        const distanceToEnd = Math.abs(potentialStart - blockEnd);
-        if (
-          distanceToEnd < snapThreshold &&
-          potentialStart > blockEnd - snapThreshold
-        ) {
-          newPosition = blockEnd;
-          snapPosition = blockEnd;
-          break;
-        }
+       // Snap to left edge (starttime) of any block
+       const distanceToStart = Math.abs(potentialStart - blockStart);
+       if (distanceToStart < snapThreshold) {
+         newPosition = blockStart;
+         snapPosition = blockStart;
+         break;
+       }
 
-        const distanceToStart = Math.abs(potentialEnd - blockStart);
-        if (
-          distanceToStart < snapThreshold &&
-          potentialEnd < blockStart + snapThreshold
-        ) {
-          newPosition = blockStart - draggedBlock.duration;
-          snapPosition = blockStart;
-          break;
-        }
-      }
+       // Snap to right edge (end) of any block
+       const distanceToEnd = Math.abs(potentialStart - blockEnd);
+       if (distanceToEnd < snapThreshold) {
+         newPosition = blockEnd;
+         snapPosition = blockEnd;
+         break;
+       }
 
-      if (snapPosition === null) {
-        for (const block of allOtherBlocks.filter(
-          (b) => b.trackId !== targetTrackId
-        )) {
-          const blockStart = block.starttime;
-          const blockEnd = block.starttime + block.duration;
+       // Snap the end of the dragged block to the start of another block
+       const distanceEndToStart = Math.abs(potentialEnd - blockStart);
+       if (distanceEndToStart < snapThreshold) {
+         newPosition = blockStart - draggedBlock.duration;
+         snapPosition = blockStart;
+         break;
+       }
 
-          const distanceToEnd = Math.abs(potentialStart - blockEnd);
-          if (
-            distanceToEnd < snapThreshold &&
-            potentialStart > blockEnd - snapThreshold
-          ) {
-            newPosition = blockEnd;
-            snapPosition = blockEnd;
-            break;
-          }
+       // Snap the end of the dragged block to the end of another block
+       const distanceEndToEnd = Math.abs(potentialEnd - blockEnd);
+       if (distanceEndToEnd < snapThreshold) {
+         newPosition = blockEnd - draggedBlock.duration;
+         snapPosition = blockEnd;
+         break;
+       }
+     }
 
-          const distanceToStart = Math.abs(potentialEnd - blockStart);
-          if (
-            distanceToStart < snapThreshold &&
-            potentialEnd < blockStart + snapThreshold
-          ) {
-            newPosition = blockStart - draggedBlock.duration;
-            snapPosition = blockStart;
-            break;
-          }
-        }
-      }
+     // Ensure the position respects overlaps within the target track
+     newPosition = calculateBlockPosition(
+       targetTrackId,
+       newPosition,
+       dragInfo.blockId,
+       draggedBlock.duration
+     );
 
-      setDropTarget({
-        trackId: targetTrackId,
-        position: Math.round(newPosition * 10) / 10,
-      });
-      setSnapGuidePosition(snapPosition);
-    },
-    [dragInfo, blocks, tracks]
-  );
+     setDropTarget({
+       trackId: targetTrackId,
+       position: Math.round(newPosition * 10) / 10,
+     });
+     setSnapGuidePosition(snapPosition);
+   },
+   [dragInfo, blocks, tracks]
+ );
 
   const handleDragEnd = useCallback(
     (e: MouseEvent) => {
