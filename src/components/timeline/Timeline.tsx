@@ -82,7 +82,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   const [splitPreview, setSplitPreview] = useState<number | null>(null);
 
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (mode === "hand" || isSplitEnabled || !blockRef.current) return;
+    if (mode === "select" || isSplitEnabled || !blockRef.current) return;
     e.preventDefault();
     e.stopPropagation();
     const rect = blockRef.current.getBoundingClientRect();
@@ -100,7 +100,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   };
 
   const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isSplitEnabled || mode === "hand") return;
+    if (isSplitEnabled || mode === "select") return;
     e.preventDefault();
     e.stopPropagation();
     resizeData.current = { startX: e.clientX, origDuration: block.duration };
@@ -144,7 +144,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     if (isSplitEnabled && splitPreview !== null) {
       onSplitBlock(block.id, splitPreview);
       setSplitPreview(null);
-    } else if (mode === "hand" && !isSplitEnabled) {
+    } else if (mode === "select" && !isSplitEnabled) {
       onFocus(block.id);
     }
   };
@@ -188,7 +188,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       onTouchStart={(e) => {
-        if (mode === "hand" || isSplitEnabled || !blockRef.current) return;
+        if (mode === "select" || isSplitEnabled || !blockRef.current) return;
         const touch = e.touches[0];
         const rect = blockRef.current.getBoundingClientRect();
         const offsetX = touch.clientX - rect.left;
@@ -225,11 +225,11 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
           width: "10px",
           height: "100%",
           backgroundColor:
-            isSplitEnabled || mode === "hand"
+            isSplitEnabled || mode === "select"
               ? "rgba(150, 150, 150, 0.6)"
               : "rgba(255, 0, 0, 0.6)",
           cursor:
-            isSplitEnabled || mode === "hand" ? "not-allowed" : "ew-resize",
+            isSplitEnabled || mode === "select" ? "not-allowed" : "ew-resize",
         }}
         onMouseDown={onResizeMouseDown}
       ></div>
@@ -698,7 +698,7 @@ const Timeline: React.FC<TimelineProps> = ({
   };
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (mode === "hand" && !isSplitEnabled) {
+    if (mode === "select" && !isSplitEnabled) {
       const target = e.target as HTMLElement;
       if (!target.closest(".block-component")) {
         setFocusedBlockId(null);

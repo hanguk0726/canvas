@@ -17,7 +17,7 @@ const Home: React.FC = () => {
     { id: 3, label: "Track 4" },
   ]);
   const [focusedBlockId, setFocusedBlockId] = useState<number | null>(null);
-  const [mode, setMode] = useState<"select" | "hand">("select");
+  const [mode, setMode] = useState<"select" | "hand">("hand");
 
   const addBlock = () => {
     const newId = blocks.length ? Math.max(...blocks.map((b) => b.id)) + 1 : 1;
@@ -93,17 +93,17 @@ const Home: React.FC = () => {
           </button>
           <button
             onClick={deleteBlock}
-            disabled={focusedBlockId === null || mode !== "hand"}
+            disabled={focusedBlockId === null || mode !== "select"}
             style={{
               padding: "5px 10px",
               backgroundColor:
-                focusedBlockId === null || mode !== "hand"
+                focusedBlockId === null || mode !== "select"
                   ? "#cccccc"
                   : "#f44336",
               color: "white",
               borderRadius: "4px",
               cursor:
-                focusedBlockId === null || mode !== "hand"
+                focusedBlockId === null || mode !== "select"
                   ? "not-allowed"
                   : "pointer",
             }}
@@ -120,7 +120,7 @@ const Home: React.FC = () => {
               cursor: "pointer",
             }}
           >
-            {mode === "select" ? "핸드 모드" : "선택 모드"}
+            {mode === "select" ? "현재: 선택 모드" : "현재: 핸드 모드"}
           </button>
           <button
             onClick={addTrack}
