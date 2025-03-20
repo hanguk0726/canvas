@@ -47,7 +47,9 @@ interface BlockComponentProps {
     trackType: Block["type"],
     clientX: number,
     clientY: number,
-    blockWidth: number
+    blockWidth: number,
+    offsetX: number,
+    offsetY: number
   ) => void;
 }
 
@@ -68,7 +70,17 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     e.stopPropagation();
     if (blockRef.current) {
       const rect = blockRef.current.getBoundingClientRect();
-      onDragStart(block.id, block.type, e.clientX, e.clientY, rect.width);
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+      onDragStart(
+        block.id,
+        block.type,
+        e.clientX,
+        e.clientY,
+        rect.width,
+        offsetX,
+        offsetY
+      );
     }
   };
 
@@ -81,7 +93,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     window.addEventListener("mouseup", onResizeMouseUp);
   };
 
-  // 리사이즈 중: 오른쪽 에서만 리사이즈하며, 다음 블록과 겹치지 않도록 함
+  // 리사이즈 중: 오른쪽에서만 리사이즈하며, 다음 블록과 겹치지 않도록 함
   const onResizing = (e: MouseEvent) => {
     if (!resizeData.current) return;
     const deltaSeconds = (e.clientX - resizeData.current.startX) / scale;
@@ -132,12 +144,16 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
         const touch = e.touches[0];
         if (blockRef.current) {
           const rect = blockRef.current.getBoundingClientRect();
+          const offsetX = touch.clientX - rect.left;
+          const offsetY = touch.clientY - rect.top;
           onDragStart(
             block.id,
             block.type,
             touch.clientX,
             touch.clientY,
-            rect.width
+            rect.width,
+            offsetX,
+            offsetY
           );
         }
       }}
@@ -170,7 +186,9 @@ interface BlockRowProps {
     trackType: Block["type"],
     clientX: number,
     clientY: number,
-    blockWidth: number
+    blockWidth: number,
+    offsetX: number,
+    offsetY: number
   ) => void;
   isDropTarget: boolean;
   dropPosition: number | null;
@@ -271,6 +289,8 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     currentX: number;
     currentY: number;
     blockWidth: number;
+    offsetX: number;
+    offsetY: number;
   } | null>(null);
   const [dropTarget, setDropTarget] = useState<{
     trackType: Block["type"] | null;
@@ -333,7 +353,9 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     trackType: Block["type"],
     clientX: number,
     clientY: number,
-    blockWidth: number
+    blockWidth: number,
+    offsetX: number,
+    offsetY: number
   ) => {
     setDragInfo({
       blockId,
@@ -343,6 +365,8 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
       currentX: clientX,
       currentY: clientY,
       blockWidth: blockWidth,
+      offsetX: offsetX,
+      offsetY: offsetY,
     });
 
     // 글로벌 이벤트 리스너 추가
@@ -429,7 +453,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
     [dragInfo, dropTarget, blocks]
   );
 
-  // 드래그 미리보기 렌더링 수정
+  // 드래그 미리보기 렌더링 (오프셋을 적용하여 x, y 모두 계산)
   const renderDragPreview = () => {
     if (!dragInfo?.blockId) return null;
 
@@ -438,19 +462,22 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
 
     const bgColor =
       draggedBlock.type === "video"
-        ? "rgba(0, 0, 255, 0.8)" // 알파값 조정
+        ? "rgba(0, 0, 255, 0.8)"
         : draggedBlock.type === "audio"
         ? "rgba(0, 255, 0, 0.8)"
         : draggedBlock.type === "shape"
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
 
+    const leftPos = dragInfo.currentX - dragInfo.offsetX;
+    const topPos = dragInfo.currentY - dragInfo.offsetY;
+
     return (
       <div
         style={{
           position: "fixed",
-          left: dragInfo.currentX, // 중앙 대신 시작 지점으로 변경
-          top: dragInfo.currentY - 25,
+          left: leftPos,
+          top: topPos,
           width: `${draggedBlock.duration * scale}px`,
           height: "50px",
           backgroundColor: bgColor,
@@ -459,17 +486,18 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
           boxSizing: "border-box",
           pointerEvents: "none",
           zIndex: 1000,
-          opacity: 0.9, // 가시성 향상
-          boxShadow: "0 0 10px rgba(0,0,0,0.5)", // 쉐도우 유지
+          opacity: 0.9,
+          boxShadow: "0 0 10px rgba(0,0,0,0.5)",
           color: "white",
-          fontWeight: "bold", // 텍스트 가독성 향상
-          textShadow: "1px 1px 2px rgba(0,0,0,0.5)", // 텍스트 그림자 추가
+          fontWeight: "bold",
+          textShadow: "1px 1px 2px rgba(0,0,0,0.5)",
         }}
       >
         {draggedBlock.type}
       </div>
     );
   };
+
   const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
 
   useEffect(() => {
@@ -479,17 +507,18 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
       window.removeEventListener("mouseup", handleDragEnd);
     };
   }, []);
+
   useEffect(() => {
     if (dragInfo) {
       window.addEventListener("mousemove", handleDragging);
       window.addEventListener("mouseup", handleDragEnd);
     }
-
     return () => {
       window.removeEventListener("mousemove", handleDragging);
       window.removeEventListener("mouseup", handleDragEnd);
     };
   }, [dragInfo, handleDragging, handleDragEnd]);
+
   return (
     <div
       ref={timelineRef}
