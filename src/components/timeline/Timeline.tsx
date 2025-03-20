@@ -1,10 +1,6 @@
-import React, { useState } from "react";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from "react-beautiful-dnd";
+import React, { useState, useRef } from "react";
+
+const scale = 10; // 1초당 10px
 
 // 블록 인터페이스
 interface Block {
@@ -14,13 +10,10 @@ interface Block {
   starttime: number; // 초 단위
 }
 
-const scale = 10; // 1초당 10px
-
 // 타임라인 상단 시간 표시 컴포넌트
-const TimeAxis: React.FC<{ maxTime: number }> = ({ maxTime }) => {
+const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
   const ticks = [];
-  for (let t = 0; t <= maxTime; t += 5) {
-    // 5초 간격 눈금
+  for (let t = 0; t <= totalTime; t += 5) {
     ticks.push(t);
   }
   return (
@@ -35,11 +28,7 @@ const TimeAxis: React.FC<{ maxTime: number }> = ({ maxTime }) => {
       {ticks.map((t) => (
         <div
           key={t}
-          style={{
-            position: "absolute",
-            left: `${t * scale}px`,
-            top: 0,
-          }}
+          style={{ position: "absolute", left: `${t * scale}px`, top: 0 }}
         >
           <div style={{ borderLeft: "1px solid #aaa", height: "10px" }}></div>
           <div style={{ fontSize: "10px" }}>{t}s</div>
@@ -49,52 +38,76 @@ const TimeAxis: React.FC<{ maxTime: number }> = ({ maxTime }) => {
   );
 };
 
-// 개별 블록 컴포넌트 (분할, 리사이즈, 드래그 미리보기 효과 포함)
 interface BlockComponentProps {
   block: Block;
-  updateBlock: (updatedBlock: Block) => void;
-  splitBlock: (blockId: number, splitTime: number) => void;
+  boundaries: { min: number; max: number }; // 이동 및 크기 조절 제한 (초 단위)
+  updateBlock: (updated: Block) => void;
 }
+
+// 블록 컴포넌트 (드래그, 리사이즈 직접 구현)
 const BlockComponent: React.FC<BlockComponentProps> = ({
   block,
+  boundaries,
   updateBlock,
-  splitBlock,
 }) => {
-  // 블록 리사이즈 핸들러
-  const handleResize = (e: React.MouseEvent<HTMLDivElement>) => {
+  const blockRef = useRef<HTMLDivElement>(null);
+  const dragData = useRef<{ startX: number; origStart: number } | null>(null);
+  const resizeData = useRef<{ startX: number; origDuration: number } | null>(
+    null
+  );
+
+  // 드래그 시작
+  const onDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    const startX = e.clientX;
-    const startWidth = block.duration * scale;
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const newWidth = startWidth + (moveEvent.clientX - startX);
-      const newDuration = Math.max(1, Math.round(newWidth / scale));
-      updateBlock({ ...block, duration: newDuration });
-    };
-    const onMouseUp = () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    dragData.current = { startX: e.clientX, origStart: block.starttime };
+    window.addEventListener("mousemove", onDragging);
+    window.addEventListener("mouseup", onDragMouseUp);
   };
 
-  // 블록 분할 핸들러 (사용자 입력 기반)
-  const handleSplit = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    const input = prompt(
-      "분할할 시간을 입력하세요 (초 단위, 예: 3):",
-      `${Math.floor(block.duration / 2)}`
-    );
-    if (!input) return;
-    const splitTime = parseInt(input, 10);
-    if (isNaN(splitTime) || splitTime <= 0 || splitTime >= block.duration) {
-      alert("유효하지 않은 분할 시간입니다.");
-      return;
-    }
-    splitBlock(block.id, splitTime);
+  // 드래그 중
+  const onDragging = (e: MouseEvent) => {
+    if (!dragData.current) return;
+    const deltaSeconds = (e.clientX - dragData.current.startX) / scale;
+    let newStart = dragData.current.origStart + deltaSeconds;
+    // 충돌 방지: 현재 행의 최소/최대 제한 적용
+    newStart = Math.max(boundaries.min, newStart);
+    newStart = Math.min(boundaries.max - block.duration, newStart);
+    updateBlock({ ...block, starttime: Math.round(newStart * 100) / 100 });
   };
 
-  // 블록 타입에 따른 배경색 설정
+  // 드래그 종료
+  const onDragMouseUp = () => {
+    dragData.current = null;
+    window.removeEventListener("mousemove", onDragging);
+    window.removeEventListener("mouseup", onDragMouseUp);
+  };
+
+  // 리사이즈 시작
+  const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    resizeData.current = { startX: e.clientX, origDuration: block.duration };
+    window.addEventListener("mousemove", onResizing);
+    window.addEventListener("mouseup", onResizeMouseUp);
+  };
+
+  // 리사이즈 중: 오른쪽 에서만 리사이즈하며, 다음 블록과 겹치지 않도록 함
+  const onResizing = (e: MouseEvent) => {
+    if (!resizeData.current) return;
+    const deltaSeconds = (e.clientX - resizeData.current.startX) / scale;
+    let newDuration = resizeData.current.origDuration + deltaSeconds;
+    // 최소 1초, 최대: boundaries.max - 현재 시작시간
+    newDuration = Math.max(1, newDuration);
+    newDuration = Math.min(boundaries.max - block.starttime, newDuration);
+    updateBlock({ ...block, duration: Math.round(newDuration * 100) / 100 });
+  };
+
+  // 리사이즈 종료
+  const onResizeMouseUp = () => {
+    resizeData.current = null;
+    window.removeEventListener("mousemove", onResizing);
+    window.removeEventListener("mouseup", onResizeMouseUp);
+  };
+
   const bgColor =
     block.type === "video"
       ? "blue"
@@ -106,6 +119,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
 
   return (
     <div
+      ref={blockRef}
       style={{
         position: "absolute",
         left: `${block.starttime * scale}px`,
@@ -116,12 +130,12 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
         borderRadius: "4px",
         padding: "4px",
         boxSizing: "border-box",
+        cursor: "grab",
       }}
+      onMouseDown={onDragMouseDown}
     >
       <div>{block.type}</div>
-      <button onClick={handleSplit} style={{ fontSize: "10px" }}>
-        분할
-      </button>
+      {/* 리사이즈 핸들 (오른쪽) */}
       <div
         style={{
           position: "absolute",
@@ -132,25 +146,28 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
           backgroundColor: "red",
           cursor: "ew-resize",
         }}
-        onMouseDown={handleResize}
+        onMouseDown={onResizeMouseDown}
       ></div>
     </div>
   );
 };
 
-// 블록 타입별 행(Row) 컴포넌트
 interface BlockRowProps {
-  type: "video" | "audio" | "shape" | "color";
+  type: Block["type"];
   blocks: Block[];
-  updateBlock: (updatedBlock: Block) => void;
-  splitBlock: (blockId: number, splitTime: number) => void;
+  totalTime: number;
+  updateBlock: (updated: Block) => void;
 }
+
 const BlockRow: React.FC<BlockRowProps> = ({
   type,
   blocks,
+  totalTime,
   updateBlock,
-  splitBlock,
 }) => {
+  // 행 내 블록들을 시작 시간 순 정렬
+  const sortedBlocks = [...blocks].sort((a, b) => a.starttime - b.starttime);
+
   return (
     <div
       style={{
@@ -160,7 +177,6 @@ const BlockRow: React.FC<BlockRowProps> = ({
         marginBottom: "10px",
       }}
     >
-      {/* 왼쪽에 타입 레이블 */}
       <div
         style={{
           position: "absolute",
@@ -173,136 +189,50 @@ const BlockRow: React.FC<BlockRowProps> = ({
       >
         {type}
       </div>
-      <Droppable droppableId={`droppable-${type}`} direction="horizontal">
-        {(provided) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            style={{ position: "relative", height: "100%" }}
-          >
-            {blocks.map((block, index) => (
-              <Draggable
-                key={block.id}
-                draggableId={block.id.toString()}
-                index={index}
-              >
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    style={{
-                      ...provided.draggableProps.style,
-                      opacity: snapshot.isDragging ? 0.7 : 1, // 드래그시 미리보기 효과
-                    }}
-                  >
-                    <BlockComponent
-                      block={block}
-                      updateBlock={updateBlock}
-                      splitBlock={splitBlock}
-                    />
-                  </div>
-                )}
-              </Draggable>
-            ))}
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+      {sortedBlocks.map((block, index) => {
+        // 이전 블록의 끝과 다음 블록의 시작을 기준으로 이동/리사이즈 한계 계산
+        const prevEnd =
+          index === 0
+            ? 0
+            : sortedBlocks[index - 1].starttime +
+              sortedBlocks[index - 1].duration;
+        const nextStart =
+          index === sortedBlocks.length - 1
+            ? totalTime
+            : sortedBlocks[index + 1].starttime;
+        const boundaries = { min: prevEnd, max: nextStart };
+        return (
+          <BlockComponent
+            key={block.id}
+            block={block}
+            boundaries={boundaries}
+            updateBlock={updateBlock}
+          />
+        );
+      })}
     </div>
   );
 };
 
-// 전체 타임라인 컴포넌트
-const Timeline: React.FC = () => {
-  // 초기 블록 데이터 (예시)
+interface TimelineProps {
+  totalTime: number;
+}
+
+const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
   const initialBlocks: Block[] = [
     { id: 1, type: "video", duration: 10, starttime: 0 },
-    { id: 2, type: "audio", duration: 5, starttime: 2 },
-    { id: 3, type: "shape", duration: 8, starttime: 4 },
-    { id: 4, type: "video", duration: 6, starttime: 1 },
+    { id: 2, type: "audio", duration: 5, starttime: 12 },
+    { id: 3, type: "shape", duration: 8, starttime: 18 },
+    { id: 4, type: "video", duration: 6, starttime: 28 },
   ];
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
 
-  const blockTypes: Array<"video" | "audio" | "shape" | "color"> = [
-    "video",
-    "audio",
-    "shape",
-    "color",
-  ];
-
-  // 드래그 종료시 처리 (같은 행 내 재정렬 및 행 간 이동 시 타입 업데이트)
-  const onDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-    const sourceType = result.source.droppableId.replace("droppable-", "");
-    const destType = result.destination.droppableId.replace("droppable-", "");
-
-    // 다른 행으로 이동한 경우 타입 업데이트
-    if (sourceType !== destType) {
-      setBlocks((prevBlocks) => {
-        const updated = [...prevBlocks];
-        const movingBlockIndex = updated.findIndex(
-          (b) => b.id.toString() === result.draggableId
-        );
-        if (movingBlockIndex === -1) return prevBlocks;
-        updated[movingBlockIndex].type = destType as Block["type"];
-        return updated;
-      });
-    }
-    // 같은 행 내에서 재정렬
-    setBlocks((prevBlocks) => {
-      const newBlocks = [...prevBlocks];
-      // 해당 타입 블록만 필터링
-      const filtered = newBlocks.filter((b) => b.type === destType);
-      const others = newBlocks.filter((b) => b.type !== destType);
-      const sourceIndex = result.source.index;
-      const destIndex = result.destination!!.index; ///fixme
-      const [removed] = filtered.splice(sourceIndex, 1);
-      filtered.splice(destIndex, 0, removed);
-      // 재정렬 후 starttime 업데이트 (예: 순서에 따라 60초 간격)
-      filtered.forEach((b, i) => {
-        b.starttime = i * 60;
-      });
-      return [...others, ...filtered];
-    });
+  // 특정 블록 업데이트 (드래그나 리사이즈로 변경된 값 적용)
+  const updateBlock = (updated: Block) => {
+    setBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
   };
 
-  // 전체 타임라인의 최대 시간 계산 (타임축 범위 결정)
-  const maxTime = blocks.reduce(
-    (max, block) => Math.max(max, block.starttime + block.duration),
-    60
-  );
-
-  // 블록 업데이트 함수
-  const updateBlock = (updatedBlock: Block) => {
-    setBlocks((prev) =>
-      prev.map((b) => (b.id === updatedBlock.id ? updatedBlock : b))
-    );
-  };
-
-  // 블록 분할 함수
-  const splitBlock = (blockId: number, splitTime: number) => {
-    setBlocks((prev) => {
-      const block = prev.find((b) => b.id === blockId);
-      if (!block) return prev;
-      if (splitTime <= 0 || splitTime >= block.duration) return prev;
-      const firstBlock: Block = {
-        ...block,
-        id: Date.now(),
-        duration: splitTime,
-      };
-      const secondBlock: Block = {
-        ...block,
-        id: Date.now() + 1,
-        starttime: block.starttime + splitTime,
-        duration: block.duration - splitTime,
-      };
-      // 기존 블록 제거 후 새 블록 추가
-      return prev
-        .filter((b) => b.id !== blockId)
-        .concat([firstBlock, secondBlock]);
-    });
-  };
+  const blockTypes: Block["type"][] = ["video", "audio", "shape", "effect"];
 
   return (
     <div
@@ -313,21 +243,19 @@ const Timeline: React.FC = () => {
         padding: "20px",
       }}
     >
-      <TimeAxis maxTime={maxTime} />
-      <DragDropContext onDragEnd={onDragEnd}>
-        {blockTypes.map((type) => {
-          const typeBlocks = blocks.filter((b) => b.type === type);
-          return (
-            <BlockRow
-              key={type}
-              type={type}
-              blocks={typeBlocks}
-              updateBlock={updateBlock}
-              splitBlock={splitBlock}
-            />
-          );
-        })}
-      </DragDropContext>
+      <TimeAxis totalTime={totalTime} />
+      {blockTypes.map((type) => {
+        const typeBlocks = blocks.filter((b) => b.type === type);
+        return (
+          <BlockRow
+            key={type}
+            type={type}
+            blocks={typeBlocks}
+            totalTime={totalTime}
+            updateBlock={updateBlock}
+          />
+        );
+      })}
     </div>
   );
 };
