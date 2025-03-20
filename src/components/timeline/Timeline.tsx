@@ -375,6 +375,9 @@ const Timeline: React.FC<TimelineProps> = ({
     trackType: Block["type"] | null;
     position: number;
   } | null>(null);
+  const [snapGuidePosition, setSnapGuidePosition] = useState<number | null>(
+    null
+  );
   const timelineRef = useRef<HTMLDivElement>(null);
 
   const updateBlock = (updated: Block) => {
@@ -421,13 +424,34 @@ const Timeline: React.FC<TimelineProps> = ({
     return Math.max(0, relativeX / scale);
   };
 
+  /*************  ✨ Codeium Command ⭐  *************/
+  /**
+   * Split a block into two blocks at the given split time.
+   *
+   * Only split if the split time is within the block's duration.
+   * Otherwise, the block is left unchanged.
+   *
+   * The new block's id is the maximum id of the existing blocks plus one.
+   *
+   * The new block's starttime is the original block's starttime plus the split time.
+   * The new block's duration is the original block's duration minus the split time.
+   *
+   * @param blockId the id of the block to split
+   * @param splitTime the time at which to split the block
+   */
+  /******  075b68d5-d361-40a7-9018-53c12ddf50be  *******/
   const handleSplitBlock = (blockId: number, splitTime: number) => {
     setBlocks((prev) => {
       const blockIndex = prev.findIndex((b) => b.id === blockId);
       if (blockIndex === -1) return prev;
 
       const block = prev[blockIndex];
-      if (splitTime <= 0 || splitTime >= block.duration) return prev;
+      if (
+        snapGuidePosition == null ||
+        snapGuidePosition <= 0 ||
+        snapGuidePosition >= block.duration
+      )
+        return prev;
 
       const firstBlock: Block = {
         ...block,
@@ -456,7 +480,7 @@ const Timeline: React.FC<TimelineProps> = ({
     clientY: number,
     blockWidth: number,
     offsetX: number,
-    offsetY: number,
+    offsetY: number
   ) => {
     const draggedBlock = blocks.find((b) => b.id === blockId);
     if (!draggedBlock) return;
@@ -510,38 +534,84 @@ const Timeline: React.FC<TimelineProps> = ({
         targetTrackType === draggedBlock.type
       ) {
         // Snapping logic
+
         const sameTrackBlocks = blocks
           .filter(
             (b) => b.type === targetTrackType && b.id !== dragInfo.blockId
           )
           .sort((a, b) => a.starttime - b.starttime);
+        const allOtherBlocks = blocks.filter(
+          (b) =>
+            b.id !== dragInfo.blockId &&
+            (b.type !== draggedBlock.type || // Blocks on other tracks
+              (b.type === draggedBlock.type && // Blocks on same track, but not at original position
+                (Math.abs(b.starttime - draggedBlock.starttime) >
+                  snapThreshold ||
+                  Math.abs(
+                    b.starttime +
+                      b.duration -
+                      (draggedBlock.starttime + draggedBlock.duration)
+                  ) > snapThreshold)))
+        );
 
         let newPosition = timePosition;
+        let snapPosition: number | null = null;
         const potentialStart = timePosition;
         const potentialEnd = potentialStart + draggedBlock.duration;
 
+        // Check snapping to same track blocks (feature 1.1)
         for (const block of sameTrackBlocks) {
           const blockStart = block.starttime;
           const blockEnd = block.starttime + block.duration;
 
-          // Snap to end of another block
           const distanceToEnd = Math.abs(potentialStart - blockEnd);
           if (
             distanceToEnd < snapThreshold &&
             potentialStart > blockEnd - snapThreshold
           ) {
             newPosition = blockEnd;
+            snapPosition = blockEnd;
             break;
           }
 
-          // Snap to start of another block
           const distanceToStart = Math.abs(potentialEnd - blockStart);
           if (
             distanceToStart < snapThreshold &&
             potentialEnd < blockStart + snapThreshold
           ) {
             newPosition = blockStart - draggedBlock.duration;
+            snapPosition = blockStart;
             break;
+          }
+        }
+
+        // Check snapping to other track blocks (feature 1.2) if no same-track snap
+        if (snapPosition === null) {
+          for (const block of allOtherBlocks.filter(
+            (b) => b.type !== draggedBlock.type
+          )) {
+            const blockStart = block.starttime;
+            const blockEnd = block.starttime + block.duration;
+
+            const distanceToEnd = Math.abs(potentialStart - blockEnd);
+            if (
+              distanceToEnd < snapThreshold &&
+              potentialStart > blockEnd - snapThreshold
+            ) {
+              newPosition = blockEnd;
+              snapPosition = blockEnd;
+              break;
+            }
+
+            const distanceToStart = Math.abs(potentialEnd - blockStart);
+            if (
+              distanceToStart < snapThreshold &&
+              potentialEnd < blockStart + snapThreshold
+            ) {
+              newPosition = blockStart - draggedBlock.duration;
+              snapPosition = blockStart;
+              break;
+            }
           }
         }
 
@@ -549,8 +619,10 @@ const Timeline: React.FC<TimelineProps> = ({
           trackType: targetTrackType,
           position: Math.round(newPosition * 10) / 10,
         });
+        setSnapGuidePosition(snapPosition);
       } else {
         setDropTarget(null);
+        setSnapGuidePosition(null);
       }
     },
     [dragInfo, blocks]
@@ -576,6 +648,7 @@ const Timeline: React.FC<TimelineProps> = ({
       }
       setDragInfo(null);
       setDropTarget(null);
+      setSnapGuidePosition(null);
       window.removeEventListener("mousemove", handleDragging);
       window.removeEventListener("mouseup", handleDragEnd);
     },
@@ -596,7 +669,6 @@ const Timeline: React.FC<TimelineProps> = ({
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
 
-    // Use dropTarget position if available for snapping preview
     const leftPos =
       dropTarget && dropTarget.trackType === draggedBlock.type
         ? timelineRef.current.getBoundingClientRect().left +
@@ -698,6 +770,19 @@ const Timeline: React.FC<TimelineProps> = ({
             />
           );
         })}
+        {snapGuidePosition !== null && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${snapGuidePosition * scale + TIMELINE_PADDING}px`,
+              top: 0,
+              height: "100%",
+              width: "2px",
+              backgroundColor: "red",
+              zIndex: 5,
+            }}
+          />
+        )}
         {renderDragPreview()}
       </div>
       <div
