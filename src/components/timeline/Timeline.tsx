@@ -462,7 +462,7 @@ const Timeline: React.FC<TimelineProps> = ({ totalTime }) => {
       draggedBlock.type === "video"
         ? "rgba(0, 0, 255, 0.8)"
         : draggedBlock.type === "audio"
-        ? "rgba(0, 255, 0, 0.8)"
+        ? "rgba(18, 148, 85, 0.47)"
         : draggedBlock.type === "shape"
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
