@@ -1,11 +1,21 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-
 import { v4 as uuidv4 } from "uuid";
 
-
+// 스타일 관련 상수
 const TIMELINE_PADDING = 20;
-const scale = 10;
-const snapThreshold = 2;
+const TIME_AXIS_HEIGHT = 30;
+const TIME_AXIS_MARGIN_BOTTOM = 10;
+const TRACK_HEIGHT = 60;
+const TRACK_MARGIN_BOTTOM = 10;
+const PARENT_TRACK_HEIGHT = 60;
+const PARENT_TRACK_MARGIN_BOTTOM = 10;
+const BLOCK_HEIGHT = 50;
+const MIN_TIMELINE_HEIGHT = 400;
+
+// 계산 관련 상수
+const SCALE = 10;
+const SNAP_THRESHOLD = 2;
+const MIN_DURATION = 1;
 
 export enum BlockType {
   Video = "video",
@@ -41,15 +51,15 @@ const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
     <div
       style={{
         position: "relative",
-        height: "30px",
+        height: `${TIME_AXIS_HEIGHT}px`,
         borderBottom: "1px solid #ccc",
-        marginBottom: "10px",
+        marginBottom: `${TIME_AXIS_MARGIN_BOTTOM}px`,
       }}
     >
       {ticks.map((t) => (
         <div
           key={t}
-          style={{ position: "absolute", left: `${t * scale}px`, top: 0 }}
+          style={{ position: "absolute", left: `${t * SCALE}px`, top: 0 }}
         >
           <div style={{ borderLeft: "1px solid #aaa", height: "10px" }}></div>
           <div style={{ fontSize: "10px" }}>{t}s</div>
@@ -127,9 +137,9 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
 
   const onResizing = (e: MouseEvent) => {
     if (!resizeData.current) return;
-    const deltaSeconds = (e.clientX - resizeData.current.startX) / scale;
+    const deltaSeconds = (e.clientX - resizeData.current.startX) / SCALE;
     let newDuration = resizeData.current.origDuration + deltaSeconds;
-    newDuration = Math.max(1, newDuration);
+    newDuration = Math.max(MIN_DURATION, newDuration);
     newDuration = Math.min(boundaries.max - block.starttime, newDuration);
     updateBlock({ ...block, duration: Math.round(newDuration * 100) / 100 });
   };
@@ -144,7 +154,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     if (!isSplitEnabled || !blockRef.current) return;
     const rect = blockRef.current.getBoundingClientRect();
     const relativeX = e.clientX - rect.left;
-    const splitTime = Math.round((relativeX / scale) * 10) / 10;
+    const splitTime = Math.round((relativeX / SCALE) * 10) / 10;
     if (splitTime > 0 && splitTime < block.duration) {
       setSplitPreview(splitTime);
     } else {
@@ -192,9 +202,9 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       ref={blockRef}
       style={{
         position: "absolute",
-        left: `${block.starttime * scale}px`,
-        width: `${block.duration * scale}px`,
-        height: "50px",
+        left: `${block.starttime * SCALE}px`,
+        width: `${block.duration * SCALE}px`,
+        height: `${BLOCK_HEIGHT}px`,
         backgroundColor: bgColor,
         color: "white",
         borderRadius: "4px",
@@ -233,7 +243,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
         <div
           style={{
             position: "absolute",
-            left: `${splitPreview * scale}px`,
+            left: `${splitPreview * SCALE}px`,
             width: "2px",
             height: "100%",
             backgroundColor: "red",
@@ -275,9 +285,9 @@ const ParentBlockComponent: React.FC<{ block: Block }> = ({ block }) => {
     <div
       style={{
         position: "absolute",
-        left: `${block.starttime * scale}px`,
-        width: `${block.duration * scale}px`,
-        height: "50px",
+        left: `${block.starttime * SCALE}px`,
+        width: `${block.duration * SCALE}px`,
+        height: `${BLOCK_HEIGHT}px`,
         backgroundColor: bgColor,
         color: "white",
         borderRadius: "4px",
@@ -340,9 +350,9 @@ const BlockRow: React.FC<BlockRowProps> = ({
       ref={rowRef}
       style={{
         position: "relative",
-        height: "60px",
+        height: `${TRACK_HEIGHT}px`,
         borderBottom: "1px solid #ddd",
-        marginBottom: "10px",
+        marginBottom: `${TRACK_MARGIN_BOTTOM}px`,
         backgroundColor: isDropTarget ? "rgba(0, 255, 0, 0.1)" : "transparent",
         transition: "background-color 0.2s",
       }}
@@ -475,7 +485,7 @@ const Timeline: React.FC<TimelineProps> = ({
   ): number => {
     const previewLeftPos = clientX - offsetX;
     const relativeX = previewLeftPos - timelineRect.left - TIMELINE_PADDING;
-    return Math.max(0, relativeX / scale);
+    return Math.max(0, relativeX / SCALE);
   };
 
   const handleSplitBlock = (blockId: string, splitTime: number) => {
@@ -522,7 +532,7 @@ const Timeline: React.FC<TimelineProps> = ({
       startY: clientY,
       currentX: clientX,
       currentY: clientY,
-      blockWidth: draggedBlock.duration * scale,
+      blockWidth: draggedBlock.duration * SCALE,
       offsetX,
       offsetY,
     });
@@ -544,12 +554,14 @@ const Timeline: React.FC<TimelineProps> = ({
         timelineRect
       );
 
-      const trackHeight = 70;
-      const timeAxisHeight = 40;
-      const parentTrackHeight = parentBlock ? 70 : 0;
-      const offsetY = timeAxisHeight + parentTrackHeight;
+      const totalTrackHeight = TRACK_HEIGHT + TRACK_MARGIN_BOTTOM;
+      const totalTimeAxisHeight = TIME_AXIS_HEIGHT + TIME_AXIS_MARGIN_BOTTOM;
+      const totalParentTrackHeight = parentBlock
+        ? PARENT_TRACK_HEIGHT + PARENT_TRACK_MARGIN_BOTTOM
+        : 0;
+      const offsetY = totalTimeAxisHeight + totalParentTrackHeight;
 
-      const trackIndex = Math.floor((relativeY - offsetY) / trackHeight);
+      const trackIndex = Math.floor((relativeY - offsetY) / totalTrackHeight);
       const targetTrackId =
         trackIndex >= 0 && trackIndex < tracks.length
           ? tracks[trackIndex].id
@@ -575,59 +587,59 @@ const Timeline: React.FC<TimelineProps> = ({
         const parentEnd = parentBlock.starttime + parentBlock.duration;
 
         const distanceToParentStart = Math.abs(potentialStart - parentStart);
-        if (distanceToParentStart < snapThreshold) {
+        if (distanceToParentStart < SNAP_THRESHOLD) {
           newPosition = parentStart;
           snapPosition = parentStart;
         }
 
         const distanceToParentEnd = Math.abs(potentialStart - parentEnd);
-        if (distanceToParentEnd < snapThreshold && !snapPosition) {
+        if (distanceToParentEnd < SNAP_THRESHOLD && !snapPosition) {
           newPosition = parentEnd;
           snapPosition = parentEnd;
         }
 
         const distanceEndToParentStart = Math.abs(potentialEnd - parentStart);
-        if (distanceEndToParentStart < snapThreshold && !snapPosition) {
+        if (distanceEndToParentStart < SNAP_THRESHOLD && !snapPosition) {
           newPosition = parentStart - draggedBlock.duration;
           snapPosition = parentStart;
         }
 
         const distanceEndToParentEnd = Math.abs(potentialEnd - parentEnd);
-        if (distanceEndToParentEnd < snapThreshold && !snapPosition) {
+        if (distanceEndToParentEnd < SNAP_THRESHOLD && !snapPosition) {
           newPosition = parentEnd - draggedBlock.duration;
           snapPosition = parentEnd;
         }
       }
 
-      // 기존 블록에 대한 스냅 처리 (상위 블록 스냅이 우선 적용된 경우 건너뜀)
+      // 기존 블록에 대한 스냅 처리
       if (!snapPosition) {
         for (const block of allBlocks) {
           const blockStart = block.starttime;
           const blockEnd = block.starttime + block.duration;
 
           const distanceToStart = Math.abs(potentialStart - blockStart);
-          if (distanceToStart < snapThreshold) {
+          if (distanceToStart < SNAP_THRESHOLD) {
             newPosition = blockStart;
             snapPosition = blockStart;
             break;
           }
 
           const distanceToEnd = Math.abs(potentialStart - blockEnd);
-          if (distanceToEnd < snapThreshold) {
+          if (distanceToEnd < SNAP_THRESHOLD) {
             newPosition = blockEnd;
             snapPosition = blockEnd;
             break;
           }
 
           const distanceEndToStart = Math.abs(potentialEnd - blockStart);
-          if (distanceEndToStart < snapThreshold) {
+          if (distanceEndToStart < SNAP_THRESHOLD) {
             newPosition = blockStart - draggedBlock.duration;
             snapPosition = blockStart;
             break;
           }
 
           const distanceEndToEnd = Math.abs(potentialEnd - blockEnd);
-          if (distanceEndToEnd < snapThreshold) {
+          if (distanceEndToEnd < SNAP_THRESHOLD) {
             newPosition = blockEnd - draggedBlock.duration;
             snapPosition = blockEnd;
             break;
@@ -705,9 +717,11 @@ const Timeline: React.FC<TimelineProps> = ({
         : "rgba(255, 165, 0, 0.8)";
 
     const timelineRect = timelineRef.current.getBoundingClientRect();
-    const trackHeight = 70;
-    const timeAxisHeight = 40;
-    const parentTrackHeight = parentBlock ? 70 : 0;
+    const totalTrackHeight = TRACK_HEIGHT + TRACK_MARGIN_BOTTOM;
+    const totalTimeAxisHeight = TIME_AXIS_HEIGHT + TIME_AXIS_MARGIN_BOTTOM;
+    const totalParentTrackHeight = parentBlock
+      ? PARENT_TRACK_HEIGHT + PARENT_TRACK_MARGIN_BOTTOM
+      : 0;
 
     const dropTrackIndex =
       dropTarget?.trackId != null
@@ -717,14 +731,14 @@ const Timeline: React.FC<TimelineProps> = ({
       dropTrackIndex >= 0
         ? timelineRect.top +
           TIMELINE_PADDING +
-          timeAxisHeight +
-          parentTrackHeight +
-          dropTrackIndex * trackHeight
+          totalTimeAxisHeight +
+          totalParentTrackHeight +
+          dropTrackIndex * totalTrackHeight
         : dragInfo.currentY - dragInfo.offsetY;
 
     const leftPos =
       dropTarget?.trackId != null && dropTarget?.position != null
-        ? timelineRect.left + TIMELINE_PADDING + dropTarget.position * scale
+        ? timelineRect.left + TIMELINE_PADDING + dropTarget.position * SCALE
         : dragInfo.currentX - dragInfo.offsetX;
 
     return (
@@ -733,8 +747,8 @@ const Timeline: React.FC<TimelineProps> = ({
           position: "fixed",
           left: `${leftPos}px`,
           top: `${dropTrackTop}px`,
-          width: `${draggedBlock.duration * scale}px`,
-          height: "50px",
+          width: `${draggedBlock.duration * SCALE}px`,
+          height: `${BLOCK_HEIGHT}px`,
           backgroundColor: bgColor,
           borderRadius: "4px",
           padding: "4px",
@@ -780,7 +794,7 @@ const Timeline: React.FC<TimelineProps> = ({
           overflowY: "visible",
           width: "100%",
           padding: `${TIMELINE_PADDING}px`,
-          minHeight: "400px",
+          minHeight: `${MIN_TIMELINE_HEIGHT}px`,
         }}
         onClick={(e) => {
           if (mode === "select" && !isSplitEnabled) {
@@ -796,9 +810,9 @@ const Timeline: React.FC<TimelineProps> = ({
           <div
             style={{
               position: "relative",
-              height: "60px",
+              height: `${PARENT_TRACK_HEIGHT}px`,
               borderBottom: "1px dashed #aaa",
-              marginBottom: "10px",
+              marginBottom: `${PARENT_TRACK_MARGIN_BOTTOM}px`,
               backgroundColor: "rgba(0, 0, 0, 0.05)",
             }}
           >
@@ -845,7 +859,7 @@ const Timeline: React.FC<TimelineProps> = ({
           <div
             style={{
               position: "absolute",
-              left: `${snapGuidePosition * scale + TIMELINE_PADDING}px`,
+              left: `${snapGuidePosition * SCALE + TIMELINE_PADDING}px`,
               top: 0,
               height: "100%",
               width: "2px",
