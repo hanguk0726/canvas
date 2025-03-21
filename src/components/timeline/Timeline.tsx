@@ -16,8 +16,7 @@ export interface Block {
   duration: number;
   starttime: number;
   trackId: string;
-  subTimeline?: Timeline;
-  parentBlockId?: string;
+  subTimeline?: { blocks: Block[]; tracks: Track[] }; // 최소한의 인터페이스 유지
 }
 
 export interface Track {
@@ -30,10 +29,6 @@ export enum TimelineMode {
   Hand = "hand",
 }
 
-export interface Timeline {
-  blocks: Block[];
-  tracks: Track[];
-}
 const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
   const ticks = [];
   for (let t = 0; t <= totalTime; t += 5) {
@@ -67,18 +62,19 @@ interface BlockComponentProps {
   updateBlock: (updated: Block) => void;
   onDragStart: (
     blockId: string,
-    trackId: string, // Changed from number to string
+    trackId: string,
     clientX: number,
     clientY: number,
     blockWidth: number,
     offsetX: number,
     offsetY: number
   ) => void;
-  onSplitBlock: (blockId: string, splitTime: number) => void; // Changed from number to string
+  onSplitBlock: (blockId: string, splitTime: number) => void;
   isSplitEnabled: boolean;
   isFocused: boolean;
-  onFocus: (blockId: string) => void; // Changed from number to string
+  onFocus: (blockId: string) => void;
   mode: TimelineMode;
+  onDoubleClick?: (blockId: string) => void;
 }
 
 const BlockComponent: React.FC<BlockComponentProps> = ({
@@ -91,6 +87,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   isFocused,
   onFocus,
   mode,
+  onDoubleClick,
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
   const resizeData = useRef<{ startX: number; origDuration: number } | null>(
@@ -99,8 +96,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   const [splitPreview, setSplitPreview] = useState<number | null>(null);
 
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (mode === TimelineMode.Select || isSplitEnabled || !blockRef.current)
-      return;
+    if (mode === "select" || isSplitEnabled || !blockRef.current) return;
     e.preventDefault();
     e.stopPropagation();
     const rect = blockRef.current.getBoundingClientRect();
@@ -167,6 +163,11 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     }
   };
 
+  const handleDoubleClick = () => {
+    if (onDoubleClick) {
+      onDoubleClick(block.id);
+    }
+  };
 
   const bgColor =
     block.type === BlockType.Video
@@ -206,6 +207,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onTouchStart={(e) => {
         if (mode === "select" || isSplitEnabled || !blockRef.current) return;
         const touch = e.touches[0];
@@ -276,6 +278,7 @@ interface BlockRowProps {
   focusedBlockId: string | null; // Changed from number to string
   onFocus: (blockId: string) => void; // Changed from number to string
   mode: TimelineMode;
+  onDoubleClick?: (blockId: string) => void;
 }
 
 const BlockRow: React.FC<BlockRowProps> = ({
@@ -291,6 +294,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
   focusedBlockId,
   onFocus,
   mode,
+  onDoubleClick,
 }) => {
   const sortedBlocks = [...blocks].sort((a, b) => a.starttime - b.starttime);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -342,6 +346,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
             isFocused={block.id === focusedBlockId}
             onFocus={onFocus}
             mode={mode}
+			onDoubleClick={onDoubleClick}
           />
         );
       })}
@@ -349,18 +354,19 @@ const BlockRow: React.FC<BlockRowProps> = ({
   );
 };
 
-export interface TimelineComponenetProps {
+export interface TimelineProps {
   totalTime: number;
   isSplitEnabled: boolean;
   blocks: Block[];
   setBlocks: React.Dispatch<React.SetStateAction<Block[]>>;
   tracks: Track[];
-  focusedBlockId: string | null; // Changed from number to string
-  setFocusedBlockId: (id: string | null) => void; // Changed from number to string
+  focusedBlockId: string | null;
+  setFocusedBlockId: (id: string | null) => void;
   mode: TimelineMode;
+  onBlockDoubleClick?: (blockId: string) => void;
 }
 
-const TimelineComponenet: React.FC<TimelineComponenetProps> = ({
+const Timeline: React.FC<TimelineProps> = ({
   totalTime,
   isSplitEnabled,
   blocks,
@@ -369,10 +375,11 @@ const TimelineComponenet: React.FC<TimelineComponenetProps> = ({
   focusedBlockId,
   setFocusedBlockId,
   mode,
+  onBlockDoubleClick,
 }) => {
   const [dragInfo, setDragInfo] = useState<{
-    blockId: string; // Changed from number to string
-    originalTrackId: string; // Changed from number to string
+    blockId: string;
+    originalTrackId: string;
     startX: number;
     startY: number;
     currentX: number;
@@ -382,7 +389,7 @@ const TimelineComponenet: React.FC<TimelineComponenetProps> = ({
     offsetY: number;
   } | null>(null);
   const [dropTarget, setDropTarget] = useState<{
-    trackId: string; // Changed from number to string
+    trackId: string;
     position: number;
   } | null>(null);
   const [snapGuidePosition, setSnapGuidePosition] = useState<number | null>(
@@ -712,7 +719,14 @@ const TimelineComponenet: React.FC<TimelineComponenetProps> = ({
           padding: `${TIMELINE_PADDING}px`,
           minHeight: "400px",
         }}
-        onClick={handleTimelineClick}
+        onClick={(e) => {
+          if (mode === "select" && !isSplitEnabled) {
+            const target = e.target as HTMLElement;
+            if (!target.closest(".block-component")) {
+              setFocusedBlockId(null);
+            }
+          }
+        }}
       >
         <TimeAxis totalTime={totalTime} />
         {tracks.map((track) => {
@@ -734,6 +748,7 @@ const TimelineComponenet: React.FC<TimelineComponenetProps> = ({
               focusedBlockId={focusedBlockId}
               onFocus={setFocusedBlockId}
               mode={mode}
+              onDoubleClick={onBlockDoubleClick}
             />
           );
         })}
@@ -786,4 +801,4 @@ const TimelineComponenet: React.FC<TimelineComponenetProps> = ({
   );
 };
 
-export default TimelineComponenet;
+export default Timeline;
