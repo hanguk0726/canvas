@@ -1,11 +1,12 @@
 import React, { useState, Dispatch, SetStateAction } from "react";
-import Timeline, { Block, BlockType, Track } from "./Timeline";
+import TimelineComponenet, {
+  Block,
+  BlockType,
+  TimelineMode,
+  Track,
+} from "./Timeline";
 import { v4 as uuidv4 } from "uuid"; // You'll need to install uuid: npm install uuid
 
-export enum TimelineMode {
-  Select = "select",
-  Hand = "hand",
-}
 // Define interfaces for the component props
 export interface TimelineState {
   totalTime: number;
@@ -111,7 +112,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
   const handleModeChange = () => {
     setMode((prev) => {
       const newMode =
-        prev === TimelineMode.Select ? TimelineMode.Select : TimelineMode.Hand;
+        prev === TimelineMode.Select ? TimelineMode.Hand : TimelineMode.Select;
       updateValues({ mode: newMode });
       return newMode;
     });
@@ -223,7 +224,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
           </button>
         </div>
       </div>
-      <Timeline
+      <TimelineComponenet
         totalTime={totalTime}
         isSplitEnabled={isSplitEnabled}
         blocks={blocks}
@@ -236,6 +237,5 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
     </div>
   );
 };
-
 
 export default TimelineUi;

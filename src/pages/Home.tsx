@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { BlockType } from "../components/timeline/Timeline";
+import { BlockType, TimelineMode } from "../components/timeline/Timeline";
 import TimelineUi, {
-  TimelineMode,
   TimelineState,
 } from "../components/timeline/TimelineUi";
 import { v4 as uuidv4 } from "uuid";

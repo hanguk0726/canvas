@@ -15,7 +15,9 @@ export interface Block {
   type: BlockType;
   duration: number;
   starttime: number;
-  trackId: string; // Changed from number to string
+  trackId: string;
+  subTimeline?: Timeline;
+  parentBlockId?: string;
 }
 
 export interface Track {
@@ -23,6 +25,15 @@ export interface Track {
   label: string;
 }
 
+export enum TimelineMode {
+  Select = "select",
+  Hand = "hand",
+}
+
+export interface Timeline {
+  blocks: Block[];
+  tracks: Track[];
+}
 const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
   const ticks = [];
   for (let t = 0; t <= totalTime; t += 5) {
@@ -337,7 +348,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
   );
 };
 
-export interface TimelineProps {
+export interface TimelineComponenetProps {
   totalTime: number;
   isSplitEnabled: boolean;
   blocks: Block[];
@@ -345,10 +356,10 @@ export interface TimelineProps {
   tracks: Track[];
   focusedBlockId: string | null; // Changed from number to string
   setFocusedBlockId: (id: string | null) => void; // Changed from number to string
-  mode: "select" | "hand";
+  mode: TimelineMode;
 }
 
-const Timeline: React.FC<TimelineProps> = ({
+const TimelineComponenet: React.FC<TimelineComponenetProps> = ({
   totalTime,
   isSplitEnabled,
   blocks,
@@ -774,4 +785,4 @@ const Timeline: React.FC<TimelineProps> = ({
   );
 };
 
-export default Timeline;
+export default TimelineComponenet;
