@@ -34,7 +34,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(
     initialValues.focusedBlockId
   );
-  const [mode, setMode] = useState<"select" | "hand">(initialValues.mode);
+  const [mode, setMode] = useState<TimelineMode>(initialValues.mode);
 
   // Sync state changes back to parent
   const updateValues = (updates: Partial<TimelineState>) => {
