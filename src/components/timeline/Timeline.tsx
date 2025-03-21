@@ -9,16 +9,17 @@ export enum BlockType {
   Audio = "audio",
   Animation = "animation",
 }
+
 export interface Block {
   id: string;
   type: BlockType;
   duration: number;
   starttime: number;
-  trackId: number;
+  trackId: string; // Changed from number to string
 }
 
-interface Track {
-  id: string;
+export interface Track {
+  id: string; // Changed from number to string
   label: string;
 }
 
@@ -55,17 +56,17 @@ interface BlockComponentProps {
   updateBlock: (updated: Block) => void;
   onDragStart: (
     blockId: string,
-    trackId: number,
+    trackId: string, // Changed from number to string
     clientX: number,
     clientY: number,
     blockWidth: number,
     offsetX: number,
     offsetY: number
   ) => void;
-  onSplitBlock: (blockId: number, splitTime: number) => void;
+  onSplitBlock: (blockId: string, splitTime: number) => void; // Changed from number to string
   isSplitEnabled: boolean;
   isFocused: boolean;
-  onFocus: (blockId: number) => void;
+  onFocus: (blockId: string) => void; // Changed from number to string
   mode: "select" | "hand";
 }
 
@@ -155,11 +156,11 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   };
 
   const bgColor =
-    block.type === "video"
+    block.type === BlockType.Video
       ? "blue"
-      : block.type === "audio"
+      : block.type === BlockType.Audio
       ? "green"
-      : block.type === "shape"
+      : block.type === BlockType.Animation
       ? "purple"
       : "orange";
 
@@ -248,8 +249,8 @@ interface BlockRowProps {
   totalTime: number;
   updateBlock: (updated: Block) => void;
   onDragStart: (
-    blockId: number,
-    trackId: number,
+    blockId: string, // Changed from number to string
+    trackId: string, // Changed from number to string
     clientX: number,
     clientY: number,
     blockWidth: number,
@@ -258,10 +259,10 @@ interface BlockRowProps {
   ) => void;
   isDropTarget: boolean;
   dropPosition: number | null;
-  onSplitBlock: (blockId: number, splitTime: number) => void;
+  onSplitBlock: (blockId: string, splitTime: number) => void; // Changed from number to string
   isSplitEnabled: boolean;
-  focusedBlockId: number | null;
-  onFocus: (blockId: number) => void;
+  focusedBlockId: string | null; // Changed from number to string
+  onFocus: (blockId: string) => void; // Changed from number to string
   mode: "select" | "hand";
 }
 
@@ -332,30 +333,18 @@ const BlockRow: React.FC<BlockRowProps> = ({
           />
         );
       })}
-      {/* {isDropTarget && dropPosition !== null && ( // render drop point
-        <div
-          style={{
-            position: "absolute",
-            left: `${dropPosition * scale}px`,
-            height: "50px",
-            width: "2px",
-            backgroundColor: "green",
-            zIndex: "10",
-          }}
-        />
-      )} */}
     </div>
   );
 };
 
-interface TimelineProps {
+export interface TimelineProps {
   totalTime: number;
   isSplitEnabled: boolean;
   blocks: Block[];
   setBlocks: React.Dispatch<React.SetStateAction<Block[]>>;
   tracks: Track[];
-  focusedBlockId: number | null;
-  setFocusedBlockId: (id: number | null) => void;
+  focusedBlockId: string | null; // Changed from number to string
+  setFocusedBlockId: (id: string | null) => void; // Changed from number to string
   mode: "select" | "hand";
 }
 
@@ -370,8 +359,8 @@ const Timeline: React.FC<TimelineProps> = ({
   mode,
 }) => {
   const [dragInfo, setDragInfo] = useState<{
-    blockId: number;
-    originalTrackId: number;
+    blockId: string; // Changed from number to string
+    originalTrackId: string; // Changed from number to string
     startX: number;
     startY: number;
     currentX: number;
@@ -381,7 +370,7 @@ const Timeline: React.FC<TimelineProps> = ({
     offsetY: number;
   } | null>(null);
   const [dropTarget, setDropTarget] = useState<{
-    trackId: number;
+    trackId: string; // Changed from number to string
     position: number;
   } | null>(null);
   const [snapGuidePosition, setSnapGuidePosition] = useState<number | null>(
@@ -394,9 +383,9 @@ const Timeline: React.FC<TimelineProps> = ({
   };
 
   const calculateBlockPosition = (
-    trackId: number,
+    trackId: string, // Changed from number to string
     position: number,
-    blockId: number,
+    blockId: string, // Changed from number to string
     blockDuration: number
   ) => {
     const sameTrackBlocks = blocks
@@ -433,7 +422,8 @@ const Timeline: React.FC<TimelineProps> = ({
     return Math.max(0, relativeX / scale);
   };
 
-  const handleSplitBlock = (blockId: number, splitTime: number) => {
+  const handleSplitBlock = (blockId: string, splitTime: number) => {
+    // Changed from number to string
     setBlocks((prev) => {
       const blockIndex = prev.findIndex((b) => b.id === blockId);
       if (blockIndex === -1) return prev;
@@ -447,7 +437,7 @@ const Timeline: React.FC<TimelineProps> = ({
       };
       const secondBlock: Block = {
         ...block,
-        id: Math.max(...prev.map((b) => b.id)) + 1,
+        id: `${Math.max(...prev.map((b) => parseInt(b.id))) + 1}`, // Convert to string
         starttime: block.starttime + splitTime,
         duration: block.duration - splitTime,
       };
@@ -462,8 +452,8 @@ const Timeline: React.FC<TimelineProps> = ({
   };
 
   const handleDragStart = (
-    blockId: number,
-    trackId: number,
+    blockId: string, // Changed from number to string
+    trackId: string, // Changed from number to string
     clientX: number,
     clientY: number,
     blockWidth: number,
@@ -516,19 +506,17 @@ const Timeline: React.FC<TimelineProps> = ({
         return;
       }
 
-      const allBlocks = blocks.filter((b) => b.id !== dragInfo.blockId); // All blocks except the dragged one
+      const allBlocks = blocks.filter((b) => b.id !== dragInfo.blockId);
 
       let newPosition = timePosition;
       let snapPosition: number | null = null;
       const potentialStart = timePosition;
       const potentialEnd = potentialStart + draggedBlock.duration;
 
-      // Check snapping to all blocks (across tracks) for both start and end edges
       for (const block of allBlocks) {
         const blockStart = block.starttime;
         const blockEnd = block.starttime + block.duration;
 
-        // Snap to left edge (starttime) of any block
         const distanceToStart = Math.abs(potentialStart - blockStart);
         if (distanceToStart < snapThreshold) {
           newPosition = blockStart;
@@ -536,7 +524,6 @@ const Timeline: React.FC<TimelineProps> = ({
           break;
         }
 
-        // Snap to right edge (end) of any block
         const distanceToEnd = Math.abs(potentialStart - blockEnd);
         if (distanceToEnd < snapThreshold) {
           newPosition = blockEnd;
@@ -544,7 +531,6 @@ const Timeline: React.FC<TimelineProps> = ({
           break;
         }
 
-        // Snap the end of the dragged block to the start of another block
         const distanceEndToStart = Math.abs(potentialEnd - blockStart);
         if (distanceEndToStart < snapThreshold) {
           newPosition = blockStart - draggedBlock.duration;
@@ -552,7 +538,6 @@ const Timeline: React.FC<TimelineProps> = ({
           break;
         }
 
-        // Snap the end of the dragged block to the end of another block
         const distanceEndToEnd = Math.abs(potentialEnd - blockEnd);
         if (distanceEndToEnd < snapThreshold) {
           newPosition = blockEnd - draggedBlock.duration;
@@ -561,7 +546,6 @@ const Timeline: React.FC<TimelineProps> = ({
         }
       }
 
-      // Ensure the position respects overlaps within the target track
       newPosition = calculateBlockPosition(
         targetTrackId,
         newPosition,
@@ -623,19 +607,18 @@ const Timeline: React.FC<TimelineProps> = ({
     if (!draggedBlock) return null;
 
     const bgColor =
-      draggedBlock.type === "video"
+      draggedBlock.type === BlockType.Video
         ? "rgba(0, 0, 255, 0.8)"
-        : draggedBlock.type === "audio"
+        : draggedBlock.type === BlockType.Audio
         ? "rgba(21, 131, 21, 0.8)"
-        : draggedBlock.type === "shape"
+        : draggedBlock.type === BlockType.Animation
         ? "rgba(128, 0, 128, 0.8)"
         : "rgba(255, 165, 0, 0.8)";
 
     const timelineRect = timelineRef.current.getBoundingClientRect();
-    const trackHeight = 70; // Height of each track (60px) + margin (10px)
-    const timeAxisHeight = 40; // Height of TimeAxis (30px) + margin (10px)
+    const trackHeight = 70;
+    const timeAxisHeight = 40;
 
-    // Calculate top position based on target track or mouse position
     const dropTrackIndex =
       dropTarget?.trackId != null
         ? tracks.findIndex((t) => t.id === dropTarget.trackId)

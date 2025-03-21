@@ -1,59 +1,133 @@
-import React, { useState } from "react";
-import { Block } from "./Timeline";
+import React, { useState, Dispatch, SetStateAction } from "react";
+import Timeline, { Block, BlockType, Track } from "./Timeline";
+import { v4 as uuidv4 } from "uuid"; // You'll need to install uuid: npm install uuid
 
-const TimelienUi: React.FC = () => {
-  const [totalTime, setTotalTime] = useState(120);
-  const [isSplitEnabled, setIsSplitEnabled] = useState(false);
-  const [blocks, setBlocks] = useState<Block[]>([
-    { id: 1, type: "video", duration: 10, starttime: 0, trackId: 0 },
-    { id: 2, type: "audio", duration: 5, starttime: 12, trackId: 1 },
-    { id: 3, type: "shape", duration: 8, starttime: 18, trackId: 2 },
-    { id: 4, type: "video", duration: 6, starttime: 28, trackId: 0 },
-  ]);
-  const [tracks, setTracks] = useState([
-    { id: 0, label: "Track 1" },
-    { id: 1, label: "Track 2" },
-    { id: 2, label: "Track 3" },
-    { id: 3, label: "Track 4" },
-  ]);
-  const [focusedBlockId, setFocusedBlockId] = useState<number | null>(null);
-  const [mode, setMode] = useState<"select" | "hand">("hand");
+export enum TimelineMode {
+  Select = "select",
+  Hand = "hand",
+}
+// Define interfaces for the component props
+export interface TimelineState {
+  totalTime: number;
+  isSplitEnabled: boolean;
+  tracks: Track[];
+  blocks: Block[];
+  focusedBlockId: string | null;
+  mode: TimelineMode;
+}
+
+export interface TimelineUiProps {
+  initialValues: TimelineState;
+  setValues: Dispatch<SetStateAction<TimelineState>>;
+}
+
+export const TimelineUi: React.FC<TimelineUiProps> = ({
+  initialValues,
+  setValues,
+}) => {
+  const [totalTime, setTotalTime] = useState(initialValues.totalTime);
+  const [isSplitEnabled, setIsSplitEnabled] = useState(
+    initialValues.isSplitEnabled
+  );
+  const [tracks, setTracks] = useState<Track[]>(initialValues.tracks);
+  const [blocks, setBlocks] = useState<Block[]>(initialValues.blocks);
+  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(
+    initialValues.focusedBlockId
+  );
+  const [mode, setMode] = useState<"select" | "hand">(initialValues.mode);
+
+  // Sync state changes back to parent
+  const updateValues = (updates: Partial<TimelineState>) => {
+    setValues((prev) => ({ ...prev, ...updates }));
+  };
 
   const addBlock = () => {
-    const newId = blocks.length ? Math.max(...blocks.map((b) => b.id)) + 1 : 1;
     const newBlock: Block = {
-      id: newId,
-      type: "video",
+      id: uuidv4(),
+      type: BlockType.Video,
       duration: 5,
       starttime: 0,
-      trackId: tracks[0]?.id ?? 0, // Default to first track, or 0 if no tracks
+      trackId: tracks[0]?.id ?? uuidv4(),
     };
-    setBlocks((prev) => [...prev, newBlock]);
+    setBlocks((prev) => {
+      const newBlocks = [...prev, newBlock];
+      updateValues({ blocks: newBlocks });
+      return newBlocks;
+    });
   };
 
   const deleteBlock = () => {
-    if (focusedBlockId === null || mode !== "hand") return;
-    setBlocks((prev) => prev.filter((b) => b.id !== focusedBlockId));
+    if (focusedBlockId === null || mode !== "select") return;
+    setBlocks((prev) => {
+      const newBlocks = prev.filter((b) => b.id !== focusedBlockId);
+      updateValues({ blocks: newBlocks, focusedBlockId: null });
+      return newBlocks;
+    });
     setFocusedBlockId(null);
   };
 
   const addTrack = () => {
-    const newId = tracks.length ? Math.max(...tracks.map((t) => t.id)) + 1 : 0;
-    setTracks((prev) => [...prev, { id: newId, label: `Track ${newId + 1}` }]);
+    const newId = uuidv4();
+    setTracks((prev) => {
+      const newTracks = [
+        ...prev,
+        { id: newId, label: `Track ${prev.length + 1}` },
+      ];
+      updateValues({ tracks: newTracks });
+      return newTracks;
+    });
   };
 
   const removeTrack = () => {
-    if (tracks.length <= 1) return; // Keep at least one track
-    const trackToRemove = tracks[tracks.length - 1]; // Remove the last track
-    setTracks((prev) => prev.slice(0, -1));
+    if (tracks.length <= 1) return;
+    const trackToRemove = tracks[tracks.length - 1];
+    setTracks((prev) => {
+      const newTracks = prev.slice(0, -1);
+      const firstTrackId = newTracks[0]?.id ?? "0";
+      setBlocks((prevBlocks) => {
+        const newBlocks = prevBlocks.map((b) =>
+          b.trackId === trackToRemove.id ? { ...b, trackId: firstTrackId } : b
+        );
+        updateValues({ tracks: newTracks, blocks: newBlocks });
+        return newBlocks;
+      });
+      return newTracks;
+    });
+  };
 
-    // Reassign blocks from the removed track to the first remaining track
-    const firstTrackId = tracks[0]?.id ?? 0;
-    setBlocks((prev) =>
-      prev.map((b) =>
-        b.trackId === trackToRemove.id ? { ...b, trackId: firstTrackId } : b
-      )
-    );
+  const handleTotalTimeChange = (value: number) => {
+    setTotalTime(value);
+    updateValues({ totalTime: value });
+  };
+
+  const handleSplitToggle = () => {
+    setIsSplitEnabled((prev) => {
+      const newValue = !prev;
+      updateValues({ isSplitEnabled: newValue });
+      return newValue;
+    });
+  };
+
+  const handleModeChange = () => {
+    setMode((prev) => {
+      const newMode =
+        prev === TimelineMode.Select ? TimelineMode.Select : TimelineMode.Hand;
+      updateValues({ mode: newMode });
+      return newMode;
+    });
+  };
+
+  const handleBlocksChange: Dispatch<SetStateAction<Block[]>> = (value) => {
+    setBlocks((prev) => {
+      const newBlocks = typeof value === "function" ? value(prev) : value;
+      updateValues({ blocks: newBlocks });
+      return newBlocks;
+    });
+  };
+
+  const handleFocusChange = (id: string | null) => {
+    setFocusedBlockId(id);
+    updateValues({ focusedBlockId: id });
   };
 
   return (
@@ -64,11 +138,11 @@ const TimelienUi: React.FC = () => {
           <input
             type="number"
             value={totalTime}
-            onChange={(e) => setTotalTime(Number(e.target.value))}
+            onChange={(e) => handleTotalTimeChange(Number(e.target.value))}
             style={{ width: "80px" }}
           />
           <button
-            onClick={() => setIsSplitEnabled((prev) => !prev)}
+            onClick={handleSplitToggle}
             style={{
               padding: "5px 10px",
               backgroundColor: isSplitEnabled ? "#ff4444" : "#4444ff",
@@ -111,7 +185,7 @@ const TimelienUi: React.FC = () => {
             블록 삭제
           </button>
           <button
-            onClick={() => setMode(mode === "select" ? "hand" : "select")}
+            onClick={handleModeChange}
             style={{
               padding: "5px 10px",
               backgroundColor: mode === "select" ? "#2196f3" : "#ff9800",
@@ -153,14 +227,15 @@ const TimelienUi: React.FC = () => {
         totalTime={totalTime}
         isSplitEnabled={isSplitEnabled}
         blocks={blocks}
-        setBlocks={setBlocks}
+        setBlocks={handleBlocksChange}
         tracks={tracks}
         focusedBlockId={focusedBlockId}
-        setFocusedBlockId={setFocusedBlockId}
+        setFocusedBlockId={handleFocusChange}
         mode={mode}
       />
     </div>
   );
 };
 
-export default TimelienUi;
+
+export default TimelineUi;
