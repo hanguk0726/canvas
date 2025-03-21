@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Dispatch, SetStateAction } from "react";
+import React from "react";
 import TimelineComponent, {
   Block,
   BlockType,
@@ -7,78 +7,34 @@ import TimelineComponent, {
 } from "./Timeline";
 import { v4 as uuidv4 } from "uuid";
 
-export interface TimelineState {
+interface Timeline {
+  id: string;
+  parentId: string | null;
   totalTime: number;
   isSplitEnabled: boolean;
   tracks: Track[];
   blocks: Block[];
   focusedBlockId: string | null;
-  parentTimelineState?: TimelineState;
   mode: TimelineMode;
 }
 
-export interface TimelineUiProps {
-  initialValues: TimelineState;
-  setValues: Dispatch<SetStateAction<TimelineState>>;
+interface TimelineUiProps {
+  timelines: Timeline[];
+  setTimelines: React.Dispatch<React.SetStateAction<Timeline[]>>;
+  currentTimelineId: string;
+  setCurrentTimelineId: React.Dispatch<React.SetStateAction<string>>;
 }
 
 export const TimelineUi: React.FC<TimelineUiProps> = ({
-  initialValues,
-  setValues,
+  timelines,
+  setTimelines,
+  currentTimelineId,
+  setCurrentTimelineId,
 }) => {
-  const [totalTime, setTotalTime] = useState(initialValues.totalTime);
-  const [isSplitEnabled, setIsSplitEnabled] = useState(
-    initialValues.isSplitEnabled
+  const currentTimeline = timelines.find((t) => t.id === currentTimelineId)!;
+  const parentTimeline = timelines.find(
+    (t) => t.id === currentTimeline.parentId
   );
-  const [tracks, setTracks] = useState<Track[]>(initialValues.tracks);
-  const [blocks, setBlocks] = useState<Block[]>(initialValues.blocks);
-  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(
-    initialValues.focusedBlockId
-  );
-  const [mode, setMode] = useState<TimelineMode>(initialValues.mode);
-  const [parentTimelineState, setParentTimelineState] = useState<
-    TimelineState | undefined
-  >(initialValues.parentTimelineState);
-  const [parentBlockId, setParentBlockId] = useState<string | null>(null);
-
-  // 상위 컴포넌트로 상태 동기화
-  useEffect(() => {
-    const currentState: TimelineState = {
-      totalTime,
-      isSplitEnabled,
-      tracks,
-      blocks,
-      focusedBlockId,
-      mode,
-      parentTimelineState,
-    };
-
-    if (parentTimelineState && parentBlockId) {
-      // 서브 타임라인 편집 시 상위 타임라인의 subTimeline 업데이트
-      const updatedParentBlocks = parentTimelineState.blocks.map((block) =>
-        block.id === parentBlockId
-          ? { ...block, subTimeline: { tracks, blocks } }
-          : block
-      );
-      setValues((prev) => ({
-        ...prev,
-        blocks: updatedParentBlocks,
-        parentTimelineState: prev.parentTimelineState,
-      }));
-    } else {
-      setValues(currentState);
-    }
-  }, [
-    totalTime,
-    isSplitEnabled,
-    tracks,
-    blocks,
-    focusedBlockId,
-    mode,
-    parentTimelineState,
-    parentBlockId,
-    setValues,
-  ]);
 
   const addBlock = () => {
     const newBlock: Block = {
@@ -86,119 +42,186 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       type: BlockType.Video,
       duration: 5,
       starttime: 0,
-      trackId: tracks[0]?.id ?? uuidv4(),
+      trackId: currentTimeline.tracks[0]?.id ?? uuidv4(),
     };
-    setBlocks((prev) => [...prev, newBlock]);
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId
+          ? { ...t, blocks: [...t.blocks, newBlock] }
+          : t
+      )
+    );
   };
 
   const deleteBlock = () => {
-    if (focusedBlockId === null || mode !== TimelineMode.Select) return;
-    setBlocks((prev) => prev.filter((b) => b.id !== focusedBlockId));
-    setFocusedBlockId(null);
+    if (
+      currentTimeline.focusedBlockId === null ||
+      currentTimeline.mode !== TimelineMode.Select
+    )
+      return;
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId
+          ? {
+              ...t,
+              blocks: t.blocks.filter(
+                (b) => b.id !== currentTimeline.focusedBlockId
+              ),
+              focusedBlockId: null,
+            }
+          : t
+      )
+    );
   };
 
   const addTrack = () => {
     const newId = uuidv4();
-    setTracks((prev) => [
-      ...prev,
-      { id: newId, label: `Track ${prev.length + 1}` },
-    ]);
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId
+          ? {
+              ...t,
+              tracks: [
+                ...t.tracks,
+                { id: newId, label: `Track ${t.tracks.length + 1}` },
+              ],
+            }
+          : t
+      )
+    );
   };
 
   const removeTrack = () => {
-    if (tracks.length <= 1) return;
-    const trackToRemove = tracks[tracks.length - 1];
-    const newTracks = tracks.slice(0, -1);
+    if (currentTimeline.tracks.length <= 1) return;
+    const trackToRemove =
+      currentTimeline.tracks[currentTimeline.tracks.length - 1];
+    const newTracks = currentTimeline.tracks.slice(0, -1);
     const firstTrackId = newTracks[0]?.id ?? "0";
-    setTracks(newTracks);
-    setBlocks((prev) =>
-      prev.map((b) =>
-        b.trackId === trackToRemove.id ? { ...b, trackId: firstTrackId } : b
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId
+          ? {
+              ...t,
+              tracks: newTracks,
+              blocks: t.blocks.map((b) =>
+                b.trackId === trackToRemove.id
+                  ? { ...b, trackId: firstTrackId }
+                  : b
+              ),
+            }
+          : t
       )
     );
   };
 
   const handleDoubleClick = (blockId: string) => {
-    const blockIndex = blocks.findIndex((b) => b.id === blockId);
-    if (blockIndex === -1) return;
+    const block = currentTimeline.blocks.find((b) => b.id === blockId);
+    if (!block) return;
 
-    const block = blocks[blockIndex];
-    const currentState: TimelineState = {
-      totalTime,
-      isSplitEnabled,
-      tracks,
-      blocks,
-      focusedBlockId,
-      mode,
-      parentTimelineState,
-    };
-
-    // subTimeline이 없으면 빈 타임라인 생성
-    const subTimeline = block.subTimeline || {
-      blocks: [],
-      tracks: [{ id: uuidv4(), label: "Sub Track 1" }],
-    };
-
-    // 새 상태로 전환
-    setTotalTime(120);
-    setIsSplitEnabled(false);
-    setTracks(subTimeline.tracks);
-    setBlocks(subTimeline.blocks);
-    setFocusedBlockId(null);
-    setMode(TimelineMode.Hand);
-    setParentTimelineState(currentState);
-    setParentBlockId(blockId);
+    const subTimelineId = block.subTimelineId || uuidv4();
+    if (!block.subTimelineId) {
+      setTimelines((prev) => [
+        ...prev,
+        {
+          id: subTimelineId,
+          parentId: currentTimelineId,
+          totalTime: 120,
+          isSplitEnabled: false,
+          tracks: [{ id: uuidv4(), label: "Sub Track 1" }],
+          blocks: [],
+          focusedBlockId: null,
+          mode: TimelineMode.Hand,
+        },
+        ...prev.map((t) =>
+          t.id === currentTimelineId
+            ? {
+                ...t,
+                blocks: t.blocks.map((b) =>
+                  b.id === blockId ? { ...b, subTimelineId } : b
+                ),
+              }
+            : t
+        ),
+      ]);
+    }
+    setCurrentTimelineId(subTimelineId);
   };
 
   const handleExit = () => {
-    if (parentTimelineState) {
-      // 상위 타임라인으로 돌아가기 전에 현재 서브 타임라인 상태 저장
-      const updatedParentBlocks = parentTimelineState.blocks.map((block) =>
-        block.id === parentBlockId
-          ? { ...block, subTimeline: { tracks, blocks } }
-          : block
-      );
-      setTotalTime(parentTimelineState.totalTime);
-      setIsSplitEnabled(parentTimelineState.isSplitEnabled);
-      setTracks(parentTimelineState.tracks);
-      setBlocks(updatedParentBlocks); // 편집된 subTimeline 포함
-      setFocusedBlockId(parentTimelineState.focusedBlockId);
-      setMode(parentTimelineState.mode);
-      setParentTimelineState(parentTimelineState.parentTimelineState);
-      setParentBlockId(null);
+    if (parentTimeline) {
+      setCurrentTimelineId(parentTimeline.id);
     }
   };
 
   const handleTotalTimeChange = (value: number) => {
-    setTotalTime(value);
-  };
-
-  const handleSplitToggle = () => {
-    setIsSplitEnabled((prev) => !prev);
-  };
-
-  const handleModeChange = () => {
-    setMode((prev) =>
-      prev === TimelineMode.Select ? TimelineMode.Hand : TimelineMode.Select
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId ? { ...t, totalTime: value } : t
+      )
     );
   };
 
-  const handleBlocksChange: Dispatch<SetStateAction<Block[]>> = (value) => {
-    setBlocks((prev) => (typeof value === "function" ? value(prev) : value));
+  const handleSplitToggle = () => {
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId
+          ? { ...t, isSplitEnabled: !t.isSplitEnabled }
+          : t
+      )
+    );
+  };
+
+  const handleModeChange = () => {
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId
+          ? {
+              ...t,
+              mode:
+                t.mode === TimelineMode.Select
+                  ? TimelineMode.Hand
+                  : TimelineMode.Select,
+            }
+          : t
+      )
+    );
+  };
+
+  const handleBlocksChange: React.Dispatch<React.SetStateAction<Block[]>> = (
+    value
+  ) => {
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId
+          ? {
+              ...t,
+              blocks: typeof value === "function" ? value(t.blocks) : value,
+            }
+          : t
+      )
+    );
   };
 
   const handleFocusChange = (id: string | null) => {
-    setFocusedBlockId(id);
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId ? { ...t, focusedBlockId: id } : t
+      )
+    );
   };
+
+  const parentBlockId = parentTimeline?.blocks.find(
+    (b) => b.subTimelineId === currentTimelineId
+  )?.id;
 
   return (
     <div className="w-full" style={{ padding: "0 60px", overflow: "hidden" }}>
-      {parentTimelineState && (
+      {parentTimeline && (
         <div style={{ marginBottom: "20px" }}>
-          {parentBlockId && parentTimelineState.blocks && (
+          {parentBlockId && (
             <ParentBlockInfo
               blockId={parentBlockId}
-              blocks={parentTimelineState.blocks}
+              blocks={parentTimeline.blocks}
             />
           )}
           <button onClick={handleExit} style={buttonStyle("#ff9800")}>
@@ -211,24 +234,32 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
           <span>전체 타임라인 시간 (초):</span>
           <input
             type="number"
-            value={totalTime}
+            value={currentTimeline.totalTime}
             onChange={(e) => handleTotalTimeChange(Number(e.target.value))}
             style={{ width: "80px" }}
           />
           <button
             onClick={handleSplitToggle}
-            style={buttonStyle(isSplitEnabled ? "#ff4444" : "#4444ff")}
+            style={buttonStyle(
+              currentTimeline.isSplitEnabled ? "#ff4444" : "#4444ff"
+            )}
           >
-            {isSplitEnabled ? "쪼개기 모드 끄기" : "쪼개기 모드 켜기"}
+            {currentTimeline.isSplitEnabled
+              ? "쪼개기 모드 끄기"
+              : "쪼개기 모드 켜기"}
           </button>
           <button onClick={addBlock} style={buttonStyle("#4caf50")}>
             블록 추가
           </button>
           <button
             onClick={deleteBlock}
-            disabled={focusedBlockId === null || mode !== TimelineMode.Select}
+            disabled={
+              currentTimeline.focusedBlockId === null ||
+              currentTimeline.mode !== TimelineMode.Select
+            }
             style={buttonStyle(
-              focusedBlockId === null || mode !== TimelineMode.Select
+              currentTimeline.focusedBlockId === null ||
+                currentTimeline.mode !== TimelineMode.Select
                 ? "#cccccc"
                 : "#f44336"
             )}
@@ -238,10 +269,12 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
           <button
             onClick={handleModeChange}
             style={buttonStyle(
-              mode === TimelineMode.Select ? "#2196f3" : "#ff9800"
+              currentTimeline.mode === TimelineMode.Select
+                ? "#2196f3"
+                : "#ff9800"
             )}
           >
-            {mode === TimelineMode.Select
+            {currentTimeline.mode === TimelineMode.Select
               ? "현재: 선택 모드"
               : "현재: 핸드 모드"}
           </button>
@@ -250,22 +283,24 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
           </button>
           <button
             onClick={removeTrack}
-            disabled={tracks.length <= 1}
-            style={buttonStyle(tracks.length <= 1 ? "#cccccc" : "#f44336")}
+            disabled={currentTimeline.tracks.length <= 1}
+            style={buttonStyle(
+              currentTimeline.tracks.length <= 1 ? "#cccccc" : "#f44336"
+            )}
           >
             트랙 제거
           </button>
         </div>
       </div>
       <TimelineComponent
-        totalTime={totalTime}
-        isSplitEnabled={isSplitEnabled}
-        blocks={blocks}
+        totalTime={currentTimeline.totalTime}
+        isSplitEnabled={currentTimeline.isSplitEnabled}
+        blocks={currentTimeline.blocks}
         setBlocks={handleBlocksChange}
-        tracks={tracks}
-        focusedBlockId={focusedBlockId}
+        tracks={currentTimeline.tracks}
+        focusedBlockId={currentTimeline.focusedBlockId}
         setFocusedBlockId={handleFocusChange}
-        mode={mode}
+        mode={currentTimeline.mode}
         onBlockDoubleClick={handleDoubleClick}
       />
     </div>

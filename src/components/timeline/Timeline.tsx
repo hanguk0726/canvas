@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
+import { v4 as uuidv4 } from "uuid";
 const TIMELINE_PADDING = 20;
 const scale = 10;
 const snapThreshold = 2;
@@ -16,11 +17,11 @@ export interface Block {
   duration: number;
   starttime: number;
   trackId: string;
-  subTimeline?: { blocks: Block[]; tracks: Track[] }; // 최소한의 인터페이스 유지
+  subTimelineId?: string; // subTimeline 대신 ID로 변경
 }
 
 export interface Track {
-  id: string; // Changed from number to string
+  id: string;
   label: string;
 }
 
@@ -29,6 +30,7 @@ export enum TimelineMode {
   Hand = "hand",
 }
 
+// TimeAxis, BlockComponent, BlockRow 컴포넌트는 그대로 유지
 const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
   const ticks = [];
   for (let t = 0; t <= totalTime; t += 5) {
@@ -163,7 +165,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     }
   };
 
-  const handleDoubleClick = () => {
+  const handleDoubleClickEvent = () => {
     if (onDoubleClick) {
       onDoubleClick(block.id);
     }
@@ -207,7 +209,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClick={handleDoubleClickEvent}
       onTouchStart={(e) => {
         if (mode === "select" || isSplitEnabled || !blockRef.current) return;
         const touch = e.touches[0];
@@ -257,14 +259,15 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     </div>
   );
 };
+
 interface BlockRowProps {
   track: Track;
   blocks: Block[];
   totalTime: number;
   updateBlock: (updated: Block) => void;
   onDragStart: (
-    blockId: string, // Changed from number to string
-    trackId: string, // Changed from number to string
+    blockId: string,
+    trackId: string,
     clientX: number,
     clientY: number,
     blockWidth: number,
@@ -273,10 +276,10 @@ interface BlockRowProps {
   ) => void;
   isDropTarget: boolean;
   dropPosition: number | null;
-  onSplitBlock: (blockId: string, splitTime: number) => void; // Changed from number to string
+  onSplitBlock: (blockId: string, splitTime: number) => void;
   isSplitEnabled: boolean;
-  focusedBlockId: string | null; // Changed from number to string
-  onFocus: (blockId: string) => void; // Changed from number to string
+  focusedBlockId: string | null;
+  onFocus: (blockId: string) => void;
   mode: TimelineMode;
   onDoubleClick?: (blockId: string) => void;
 }
@@ -346,7 +349,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
             isFocused={block.id === focusedBlockId}
             onFocus={onFocus}
             mode={mode}
-			onDoubleClick={onDoubleClick}
+            onDoubleClick={onDoubleClick}
           />
         );
       })}
@@ -402,15 +405,14 @@ const Timeline: React.FC<TimelineProps> = ({
   };
 
   const calculateBlockPosition = (
-    trackId: string, // Changed from number to string
+    trackId: string,
     position: number,
-    blockId: string, // Changed from number to string
+    blockId: string,
     blockDuration: number
   ) => {
     const sameTrackBlocks = blocks
       .filter((b) => b.trackId === trackId && b.id !== blockId)
       .sort((a, b) => a.starttime - b.starttime);
-
     let newPosition = Math.max(0, position);
 
     for (const block of sameTrackBlocks) {
@@ -442,7 +444,6 @@ const Timeline: React.FC<TimelineProps> = ({
   };
 
   const handleSplitBlock = (blockId: string, splitTime: number) => {
-    // Changed from number to string
     setBlocks((prev) => {
       const blockIndex = prev.findIndex((b) => b.id === blockId);
       if (blockIndex === -1) return prev;
@@ -450,13 +451,10 @@ const Timeline: React.FC<TimelineProps> = ({
       const block = prev[blockIndex];
       if (splitTime <= 0 || splitTime >= block.duration) return prev;
 
-      const firstBlock: Block = {
-        ...block,
-        duration: splitTime,
-      };
+      const firstBlock: Block = { ...block, duration: splitTime };
       const secondBlock: Block = {
         ...block,
-        id: `${Math.max(...prev.map((b) => parseInt(b.id))) + 1}`, // Convert to string
+        id: uuidv4(), // 새로운 UUID 생성
         starttime: block.starttime + splitTime,
         duration: block.duration - splitTime,
       };
@@ -471,8 +469,8 @@ const Timeline: React.FC<TimelineProps> = ({
   };
 
   const handleDragStart = (
-    blockId: string, // Changed from number to string
-    trackId: string, // Changed from number to string
+    blockId: string,
+    trackId: string,
     clientX: number,
     clientY: number,
     blockWidth: number,
@@ -679,15 +677,6 @@ const Timeline: React.FC<TimelineProps> = ({
         {draggedBlock.type}
       </div>
     );
-  };
-
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (mode === "select" && !isSplitEnabled) {
-      const target = e.target as HTMLElement;
-      if (!target.closest(".block-component")) {
-        setFocusedBlockId(null);
-      }
-    }
   };
 
   useEffect(() => {
