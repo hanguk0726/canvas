@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Timeline, { Block } from "../components/timeline/Timeline";
+import { Block } from "./Timeline";
 
 const TimelienUi: React.FC = () => {
   const [totalTime, setTotalTime] = useState(120);
