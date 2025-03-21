@@ -39,6 +39,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
   const [parentTimelineState, setParentTimelineState] = useState<
     TimelineState | undefined
   >(initialValues.parentTimelineState);
+  const [parentBlockId, setParentBlockId] = useState<string | null>(null);
 
   // 상위 컴포넌트로 상태 동기화
   useEffect(() => {
@@ -51,7 +52,22 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       mode,
       parentTimelineState,
     };
-    setValues(currentState);
+
+    if (parentTimelineState && parentBlockId) {
+      // 서브 타임라인 편집 시 상위 타임라인의 subTimeline 업데이트
+      const updatedParentBlocks = parentTimelineState.blocks.map((block) =>
+        block.id === parentBlockId
+          ? { ...block, subTimeline: { tracks, blocks } }
+          : block
+      );
+      setValues((prev) => ({
+        ...prev,
+        blocks: updatedParentBlocks,
+        parentTimelineState: prev.parentTimelineState,
+      }));
+    } else {
+      setValues(currentState);
+    }
   }, [
     totalTime,
     isSplitEnabled,
@@ -60,6 +76,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
     focusedBlockId,
     mode,
     parentTimelineState,
+    parentBlockId,
     setValues,
   ]);
 
@@ -122,10 +139,6 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       tracks: [{ id: uuidv4(), label: "Sub Track 1" }],
     };
 
-    // 상위 blocks 업데이트
-    const updatedBlocks = [...blocks];
-    updatedBlocks[blockIndex] = { ...block, subTimeline };
-
     // 새 상태로 전환
     setTotalTime(120);
     setIsSplitEnabled(false);
@@ -134,17 +147,25 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
     setFocusedBlockId(null);
     setMode(TimelineMode.Hand);
     setParentTimelineState(currentState);
+    setParentBlockId(blockId);
   };
 
   const handleExit = () => {
     if (parentTimelineState) {
+      // 상위 타임라인으로 돌아가기 전에 현재 서브 타임라인 상태 저장
+      const updatedParentBlocks = parentTimelineState.blocks.map((block) =>
+        block.id === parentBlockId
+          ? { ...block, subTimeline: { tracks, blocks } }
+          : block
+      );
       setTotalTime(parentTimelineState.totalTime);
       setIsSplitEnabled(parentTimelineState.isSplitEnabled);
       setTracks(parentTimelineState.tracks);
-      setBlocks(parentTimelineState.blocks);
+      setBlocks(updatedParentBlocks); // 편집된 subTimeline 포함
       setFocusedBlockId(parentTimelineState.focusedBlockId);
       setMode(parentTimelineState.mode);
       setParentTimelineState(parentTimelineState.parentTimelineState);
+      setParentBlockId(null);
     }
   };
 
@@ -170,15 +191,11 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
     setFocusedBlockId(id);
   };
 
-  const parentBlockId = parentTimelineState?.blocks.find((b) =>
-    b.subTimeline?.blocks.some((sb) => sb.id === focusedBlockId)
-  )?.id;
-
   return (
     <div className="w-full" style={{ padding: "0 60px", overflow: "hidden" }}>
       {parentTimelineState && (
-        <>
-          {parentBlockId && (
+        <div style={{ marginBottom: "20px" }}>
+          {parentBlockId && parentTimelineState.blocks && (
             <ParentBlockInfo
               blockId={parentBlockId}
               blocks={parentTimelineState.blocks}
@@ -187,7 +204,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
           <button onClick={handleExit} style={buttonStyle("#ff9800")}>
             상위 타임라인으로 돌아가기
           </button>
-        </>
+        </div>
       )}
       <div style={{ marginBottom: "20px" }}>
         <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
