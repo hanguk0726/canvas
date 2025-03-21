@@ -123,29 +123,30 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
 
     const subTimelineId = block.subTimelineId || uuidv4();
     if (!block.subTimelineId) {
-      setTimelines((prev) => [
-        ...prev,
-        {
-          id: subTimelineId,
-          parentId: currentTimelineId,
-          totalTime: 120,
-          isSplitEnabled: false,
-          tracks: [{ id: uuidv4(), label: "Sub Track 1" }],
-          blocks: [],
-          focusedBlockId: null,
-          mode: TimelineMode.Hand,
-        },
-        ...prev.map((t) =>
-          t.id === currentTimelineId
-            ? {
-                ...t,
-                blocks: t.blocks.map((b) =>
-                  b.id === blockId ? { ...b, subTimelineId } : b
-                ),
-              }
-            : t
-        ),
-      ]);
+      const newSubTimeline: Timeline = {
+        id: subTimelineId,
+        parentId: currentTimelineId,
+        totalTime: 120,
+        isSplitEnabled: false,
+        tracks: [{ id: uuidv4(), label: "Sub Track 1" }],
+        blocks: [],
+        focusedBlockId: null,
+        mode: TimelineMode.Hand,
+      };
+      setTimelines((prev) =>
+        prev
+          .map((t) =>
+            t.id === currentTimelineId
+              ? {
+                  ...t,
+                  blocks: t.blocks.map((b) =>
+                    b.id === blockId ? { ...b, subTimelineId } : b
+                  ),
+                }
+              : t
+          )
+          .concat(newSubTimeline)
+      );
     }
     setCurrentTimelineId(subTimelineId);
   };

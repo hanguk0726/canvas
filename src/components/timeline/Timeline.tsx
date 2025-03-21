@@ -119,6 +119,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       block.id,
       block.trackId,
       e.clientX,
+	  
       e.clientY,
       rect.width,
       offsetX,
