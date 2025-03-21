@@ -78,7 +78,7 @@ interface BlockComponentProps {
   isSplitEnabled: boolean;
   isFocused: boolean;
   onFocus: (blockId: string) => void; // Changed from number to string
-  mode: "select" | "hand";
+  mode: TimelineMode;
 }
 
 const BlockComponent: React.FC<BlockComponentProps> = ({
@@ -99,7 +99,8 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   const [splitPreview, setSplitPreview] = useState<number | null>(null);
 
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (mode === "select" || isSplitEnabled || !blockRef.current) return;
+    if (mode === TimelineMode.Select || isSplitEnabled || !blockRef.current)
+      return;
     e.preventDefault();
     e.stopPropagation();
     const rect = blockRef.current.getBoundingClientRect();
@@ -165,6 +166,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       onFocus(block.id);
     }
   };
+
 
   const bgColor =
     block.type === BlockType.Video
@@ -253,7 +255,6 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     </div>
   );
 };
-
 interface BlockRowProps {
   track: Track;
   blocks: Block[];
@@ -274,7 +275,7 @@ interface BlockRowProps {
   isSplitEnabled: boolean;
   focusedBlockId: string | null; // Changed from number to string
   onFocus: (blockId: string) => void; // Changed from number to string
-  mode: "select" | "hand";
+  mode: TimelineMode;
 }
 
 const BlockRow: React.FC<BlockRowProps> = ({
