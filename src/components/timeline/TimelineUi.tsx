@@ -40,10 +40,14 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
     (b) => b.subTimelineId === currentTimelineId
   )?.id;
 
+  const [selectedBlockType, setSelectedBlockType] = React.useState<BlockType>(
+    BlockType.Video
+  ); // 드롭다운 상태 추가
+
   const addBlock = () => {
     const newBlock: Block = {
       id: uuidv4(),
-      type: BlockType.Video,
+      type: selectedBlockType, // 선택된 타입 사용
       duration: 5,
       starttime: 0,
       trackId: currentTimeline.tracks[0]?.id ?? uuidv4(),
@@ -249,6 +253,15 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
               ? "쪼개기 모드 끄기"
               : "쪼개기 모드 켜기"}
           </button>
+          <select
+            value={selectedBlockType}
+            onChange={(e) => setSelectedBlockType(e.target.value as BlockType)}
+            style={{ padding: "5px", borderRadius: "4px" }}
+          >
+            <option value={BlockType.Video}>Video</option>
+            <option value={BlockType.Audio}>Audio</option>
+            <option value={BlockType.Animation}>Animation</option>
+          </select>
           <button onClick={addBlock} style={buttonStyle("#4caf50")}>
             블록 추가
           </button>

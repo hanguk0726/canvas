@@ -120,7 +120,6 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       block.id,
       block.trackId,
       e.clientX,
-
       e.clientY,
       rect.width,
       offsetX,
@@ -357,6 +356,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
         marginBottom: `${TRACK_MARGIN_BOTTOM}px`,
         backgroundColor: isDropTarget ? "rgba(0, 255, 0, 0.1)" : "transparent",
         transition: "background-color 0.2s",
+        width: `${totalTime * SCALE}px`,
       }}
     >
       <div
@@ -483,10 +483,12 @@ const Timeline: React.FC<TimelineProps> = ({
   const getTimePositionFromClientX = (
     clientX: number,
     offsetX: number,
-    timelineRect: DOMRect
+    timelineRect: DOMRect,
+    scrollLeft: number
   ): number => {
     const previewLeftPos = clientX - offsetX;
-    const relativeX = previewLeftPos - timelineRect.left - TIMELINE_PADDING;
+    const relativeX =
+      previewLeftPos - timelineRect.left - TIMELINE_PADDING + scrollLeft;
     return Math.max(0, relativeX / SCALE);
   };
 
@@ -549,11 +551,13 @@ const Timeline: React.FC<TimelineProps> = ({
       );
 
       const timelineRect = timelineRef.current.getBoundingClientRect();
+      const scrollLeft = timelineRef.current.scrollLeft;
       const relativeY = e.clientY - timelineRect.top;
       const timePosition = getTimePositionFromClientX(
         e.clientX,
         dragInfo.offsetX,
-        timelineRect
+        timelineRect,
+        scrollLeft
       );
 
       const totalTrackHeight = TRACK_HEIGHT + TRACK_MARGIN_BOTTOM;
@@ -583,7 +587,6 @@ const Timeline: React.FC<TimelineProps> = ({
       const potentialStart = timePosition;
       const potentialEnd = potentialStart + draggedBlock.duration;
 
-      // 상위 블록에 대한 스냅 처리
       if (parentBlock) {
         const parentStart = parentBlock.starttime;
         const parentEnd = parentBlock.starttime + parentBlock.duration;
@@ -613,7 +616,6 @@ const Timeline: React.FC<TimelineProps> = ({
         }
       }
 
-      // 기존 블록에 대한 스냅 처리
       if (!snapPosition) {
         for (const block of allBlocks) {
           const blockStart = block.starttime;
@@ -719,6 +721,7 @@ const Timeline: React.FC<TimelineProps> = ({
         : "rgba(255, 165, 0, 0.8)";
 
     const timelineRect = timelineRef.current.getBoundingClientRect();
+    const scrollLeft = timelineRef.current.scrollLeft;
     const totalTrackHeight = TRACK_HEIGHT + TRACK_MARGIN_BOTTOM;
     const totalTimeAxisHeight = TIME_AXIS_HEIGHT + TIME_AXIS_MARGIN_BOTTOM;
     const totalParentTrackHeight = parentBlock
@@ -740,8 +743,11 @@ const Timeline: React.FC<TimelineProps> = ({
 
     const leftPos =
       dropTarget?.trackId != null && dropTarget?.position != null
-        ? timelineRect.left + TIMELINE_PADDING + dropTarget.position * SCALE
-        : dragInfo.currentX - dragInfo.offsetX;
+        ? timelineRect.left +
+          TIMELINE_PADDING +
+          dropTarget.position * SCALE -
+          scrollLeft
+        : dragInfo.currentX - dragInfo.offsetX - scrollLeft;
 
     return (
       <div
