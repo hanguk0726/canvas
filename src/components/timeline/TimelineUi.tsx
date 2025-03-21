@@ -3,6 +3,7 @@ import TimelineComponent, {
   Block,
   BlockType,
   TimelineMode,
+  TOTAL_TIME,
   Track,
 } from "./Timeline";
 import { v4 as uuidv4 } from "uuid";
@@ -126,7 +127,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       const newSubTimeline: Timeline = {
         id: subTimelineId,
         parentId: currentTimelineId,
-        totalTime: 120,
+        totalTime: TOTAL_TIME,
         isSplitEnabled: false,
         tracks: [{ id: uuidv4(), label: "Sub Track 1" }],
         blocks: [],

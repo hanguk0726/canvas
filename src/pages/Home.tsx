@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { BlockType, TimelineMode } from "../components/timeline/Timeline";
+import { BlockType, TimelineMode, TOTAL_TIME } from "../components/timeline/Timeline";
 import TimelineUi from "../components/timeline/TimelineUi";
 
 interface Timeline {
@@ -44,7 +44,7 @@ export const TimelineWrapper: React.FC = () => {
       {
         id: "root",
         parentId: null,
-        totalTime: 120,
+        totalTime: TOTAL_TIME,
         isSplitEnabled: false,
         tracks,
         blocks: [
@@ -70,7 +70,7 @@ export const TimelineWrapper: React.FC = () => {
       {
         id: subTimelineId,
         parentId: "root",
-        totalTime: 120,
+        totalTime: TOTAL_TIME,
         isSplitEnabled: false,
         tracks: [{ id: firstSubTrackId, label: "Track 5" }],
         blocks: [

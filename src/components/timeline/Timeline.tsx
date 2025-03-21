@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 
 // 스타일 관련 상수
+export const TOTAL_TIME = 420;
 const TIMELINE_PADDING = 20;
 const TIME_AXIS_HEIGHT = 30;
 const TIME_AXIS_MARGIN_BOTTOM = 10;
@@ -119,7 +120,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
       block.id,
       block.trackId,
       e.clientX,
-	  
+
       e.clientY,
       rect.width,
       offsetX,
