@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
+import { v4 as uuidv4 } from "uuid";
+
+
 const TIMELINE_PADDING = 20;
 const scale = 10;
 const snapThreshold = 2;
@@ -541,10 +544,10 @@ const Timeline: React.FC<TimelineProps> = ({
         timelineRect
       );
 
-      const trackHeight = 70; // 트랙 높이 (BlockRow 높이 60px + marginBottom 10px)
-      const timeAxisHeight = 40; // TimeAxis 높이 (30px) + marginBottom (10px)
-      const parentTrackHeight = parentBlock ? 70 : 0; // 상위 블록 트랙 높이 조정 (60px + 10px)
-      const offsetY = timeAxisHeight + parentTrackHeight; // 상위 블록 트랙이 있을 경우 오프셋 추가
+      const trackHeight = 70;
+      const timeAxisHeight = 40;
+      const parentTrackHeight = parentBlock ? 70 : 0;
+      const offsetY = timeAxisHeight + parentTrackHeight;
 
       const trackIndex = Math.floor((relativeY - offsetY) / trackHeight);
       const targetTrackId =
@@ -566,36 +569,69 @@ const Timeline: React.FC<TimelineProps> = ({
       const potentialStart = timePosition;
       const potentialEnd = potentialStart + draggedBlock.duration;
 
-      for (const block of allBlocks) {
-        const blockStart = block.starttime;
-        const blockEnd = block.starttime + block.duration;
+      // 상위 블록에 대한 스냅 처리
+      if (parentBlock) {
+        const parentStart = parentBlock.starttime;
+        const parentEnd = parentBlock.starttime + parentBlock.duration;
 
-        const distanceToStart = Math.abs(potentialStart - blockStart);
-        if (distanceToStart < snapThreshold) {
-          newPosition = blockStart;
-          snapPosition = blockStart;
-          break;
+        const distanceToParentStart = Math.abs(potentialStart - parentStart);
+        if (distanceToParentStart < snapThreshold) {
+          newPosition = parentStart;
+          snapPosition = parentStart;
         }
 
-        const distanceToEnd = Math.abs(potentialStart - blockEnd);
-        if (distanceToEnd < snapThreshold) {
-          newPosition = blockEnd;
-          snapPosition = blockEnd;
-          break;
+        const distanceToParentEnd = Math.abs(potentialStart - parentEnd);
+        if (distanceToParentEnd < snapThreshold && !snapPosition) {
+          newPosition = parentEnd;
+          snapPosition = parentEnd;
         }
 
-        const distanceEndToStart = Math.abs(potentialEnd - blockStart);
-        if (distanceEndToStart < snapThreshold) {
-          newPosition = blockStart - draggedBlock.duration;
-          snapPosition = blockStart;
-          break;
+        const distanceEndToParentStart = Math.abs(potentialEnd - parentStart);
+        if (distanceEndToParentStart < snapThreshold && !snapPosition) {
+          newPosition = parentStart - draggedBlock.duration;
+          snapPosition = parentStart;
         }
 
-        const distanceEndToEnd = Math.abs(potentialEnd - blockEnd);
-        if (distanceEndToEnd < snapThreshold) {
-          newPosition = blockEnd - draggedBlock.duration;
-          snapPosition = blockEnd;
-          break;
+        const distanceEndToParentEnd = Math.abs(potentialEnd - parentEnd);
+        if (distanceEndToParentEnd < snapThreshold && !snapPosition) {
+          newPosition = parentEnd - draggedBlock.duration;
+          snapPosition = parentEnd;
+        }
+      }
+
+      // 기존 블록에 대한 스냅 처리 (상위 블록 스냅이 우선 적용된 경우 건너뜀)
+      if (!snapPosition) {
+        for (const block of allBlocks) {
+          const blockStart = block.starttime;
+          const blockEnd = block.starttime + block.duration;
+
+          const distanceToStart = Math.abs(potentialStart - blockStart);
+          if (distanceToStart < snapThreshold) {
+            newPosition = blockStart;
+            snapPosition = blockStart;
+            break;
+          }
+
+          const distanceToEnd = Math.abs(potentialStart - blockEnd);
+          if (distanceToEnd < snapThreshold) {
+            newPosition = blockEnd;
+            snapPosition = blockEnd;
+            break;
+          }
+
+          const distanceEndToStart = Math.abs(potentialEnd - blockStart);
+          if (distanceEndToStart < snapThreshold) {
+            newPosition = blockStart - draggedBlock.duration;
+            snapPosition = blockStart;
+            break;
+          }
+
+          const distanceEndToEnd = Math.abs(potentialEnd - blockEnd);
+          if (distanceEndToEnd < snapThreshold) {
+            newPosition = blockEnd - draggedBlock.duration;
+            snapPosition = blockEnd;
+            break;
+          }
         }
       }
 
@@ -669,9 +705,9 @@ const Timeline: React.FC<TimelineProps> = ({
         : "rgba(255, 165, 0, 0.8)";
 
     const timelineRect = timelineRef.current.getBoundingClientRect();
-    const trackHeight = 70; // 트랙 높이 (BlockRow 높이 60px + marginBottom 10px)
-    const timeAxisHeight = 40; // TimeAxis 높이 (30px) + marginBottom (10px)
-    const parentTrackHeight = parentBlock ? 70 : 0; // 상위 블록 트랙 높이 조정 (60px + 10px)
+    const trackHeight = 70;
+    const timeAxisHeight = 40;
+    const parentTrackHeight = parentBlock ? 70 : 0;
 
     const dropTrackIndex =
       dropTarget?.trackId != null
