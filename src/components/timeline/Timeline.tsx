@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
-import { v4 as uuidv4 } from "uuid";
 const TIMELINE_PADDING = 20;
 const scale = 10;
 const snapThreshold = 2;
@@ -17,7 +16,7 @@ export interface Block {
   duration: number;
   starttime: number;
   trackId: string;
-  subTimelineId?: string; // subTimeline 대신 ID로 변경
+  subTimelineId?: string;
 }
 
 export interface Track {
@@ -30,7 +29,6 @@ export enum TimelineMode {
   Hand = "hand",
 }
 
-// TimeAxis, BlockComponent, BlockRow 컴포넌트는 그대로 유지
 const TimeAxis: React.FC<{ totalTime: number }> = ({ totalTime }) => {
   const ticks = [];
   for (let t = 0; t <= totalTime; t += 5) {
@@ -260,6 +258,38 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   );
 };
 
+const ParentBlockComponent: React.FC<{ block: Block }> = ({ block }) => {
+  const bgColor =
+    block.type === BlockType.Video
+      ? "rgba(0, 0, 255, 0.5)"
+      : block.type === BlockType.Audio
+      ? "rgba(0, 255, 0, 0.5)"
+      : block.type === BlockType.Animation
+      ? "rgba(128, 0, 128, 0.5)"
+      : "rgba(255, 165, 0, 0.5)";
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: `${block.starttime * scale}px`,
+        width: `${block.duration * scale}px`,
+        height: "50px",
+        backgroundColor: bgColor,
+        color: "white",
+        borderRadius: "4px",
+        padding: "4px",
+        boxSizing: "border-box",
+        userSelect: "none",
+        zIndex: 0,
+        opacity: 0.7,
+      }}
+    >
+      <div>{block.type} (Parent)</div>
+    </div>
+  );
+};
+
 interface BlockRowProps {
   track: Track;
   blocks: Block[];
@@ -367,6 +397,7 @@ export interface TimelineProps {
   setFocusedBlockId: (id: string | null) => void;
   mode: TimelineMode;
   onBlockDoubleClick?: (blockId: string) => void;
+  parentBlock?: Block;
 }
 
 const Timeline: React.FC<TimelineProps> = ({
@@ -379,6 +410,7 @@ const Timeline: React.FC<TimelineProps> = ({
   setFocusedBlockId,
   mode,
   onBlockDoubleClick,
+  parentBlock,
 }) => {
   const [dragInfo, setDragInfo] = useState<{
     blockId: string;
@@ -454,7 +486,7 @@ const Timeline: React.FC<TimelineProps> = ({
       const firstBlock: Block = { ...block, duration: splitTime };
       const secondBlock: Block = {
         ...block,
-        id: uuidv4(), // 새로운 UUID 생성
+        id: uuidv4(),
         starttime: block.starttime + splitTime,
         duration: block.duration - splitTime,
       };
@@ -509,8 +541,12 @@ const Timeline: React.FC<TimelineProps> = ({
         timelineRect
       );
 
-      const trackHeight = 70;
-      const trackIndex = Math.floor((relativeY - 40) / trackHeight);
+      const trackHeight = 70; // 트랙 높이 (BlockRow 높이 60px + marginBottom 10px)
+      const timeAxisHeight = 40; // TimeAxis 높이 (30px) + marginBottom (10px)
+      const parentTrackHeight = parentBlock ? 70 : 0; // 상위 블록 트랙 높이 조정 (60px + 10px)
+      const offsetY = timeAxisHeight + parentTrackHeight; // 상위 블록 트랙이 있을 경우 오프셋 추가
+
+      const trackIndex = Math.floor((relativeY - offsetY) / trackHeight);
       const targetTrackId =
         trackIndex >= 0 && trackIndex < tracks.length
           ? tracks[trackIndex].id
@@ -576,7 +612,7 @@ const Timeline: React.FC<TimelineProps> = ({
       });
       setSnapGuidePosition(snapPosition);
     },
-    [dragInfo, blocks, tracks]
+    [dragInfo, blocks, tracks, parentBlock]
   );
 
   const handleDragEnd = useCallback(
@@ -633,8 +669,9 @@ const Timeline: React.FC<TimelineProps> = ({
         : "rgba(255, 165, 0, 0.8)";
 
     const timelineRect = timelineRef.current.getBoundingClientRect();
-    const trackHeight = 70;
-    const timeAxisHeight = 40;
+    const trackHeight = 70; // 트랙 높이 (BlockRow 높이 60px + marginBottom 10px)
+    const timeAxisHeight = 40; // TimeAxis 높이 (30px) + marginBottom (10px)
+    const parentTrackHeight = parentBlock ? 70 : 0; // 상위 블록 트랙 높이 조정 (60px + 10px)
 
     const dropTrackIndex =
       dropTarget?.trackId != null
@@ -645,6 +682,7 @@ const Timeline: React.FC<TimelineProps> = ({
         ? timelineRect.top +
           TIMELINE_PADDING +
           timeAxisHeight +
+          parentTrackHeight +
           dropTrackIndex * trackHeight
         : dragInfo.currentY - dragInfo.offsetY;
 
@@ -718,6 +756,32 @@ const Timeline: React.FC<TimelineProps> = ({
         }}
       >
         <TimeAxis totalTime={totalTime} />
+        {parentBlock && (
+          <div
+            style={{
+              position: "relative",
+              height: "60px",
+              borderBottom: "1px dashed #aaa",
+              marginBottom: "10px",
+              backgroundColor: "rgba(0, 0, 0, 0.05)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: "-60px",
+                top: "15px",
+                width: "50px",
+                textAlign: "right",
+                fontSize: "12px",
+                color: "#666",
+              }}
+            >
+              Parent
+            </div>
+            <ParentBlockComponent block={parentBlock} />
+          </div>
+        )}
         {tracks.map((track) => {
           const trackBlocks = blocks.filter((b) => b.trackId === track.id);
           return (

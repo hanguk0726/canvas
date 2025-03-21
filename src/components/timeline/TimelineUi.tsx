@@ -35,6 +35,9 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
   const parentTimeline = timelines.find(
     (t) => t.id === currentTimeline.parentId
   );
+  const parentBlockId = parentTimeline?.blocks.find(
+    (b) => b.subTimelineId === currentTimelineId
+  )?.id;
 
   const addBlock = () => {
     const newBlock: Block = {
@@ -210,10 +213,6 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
     );
   };
 
-  const parentBlockId = parentTimeline?.blocks.find(
-    (b) => b.subTimelineId === currentTimelineId
-  )?.id;
-
   return (
     <div className="w-full" style={{ padding: "0 60px", overflow: "hidden" }}>
       {parentTimeline && (
@@ -302,6 +301,11 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
         setFocusedBlockId={handleFocusChange}
         mode={currentTimeline.mode}
         onBlockDoubleClick={handleDoubleClick}
+        parentBlock={
+          parentBlockId && parentTimeline
+            ? parentTimeline.blocks.find((b) => b.id === parentBlockId)
+            : undefined
+        }
       />
     </div>
   );
