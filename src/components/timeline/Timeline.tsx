@@ -36,6 +36,7 @@ export interface Block {
 export interface Track {
   id: string;
   label: string;
+  allowedTypes?: BlockType[];
 }
 
 export enum TimelineMode {
@@ -580,6 +581,17 @@ const Timeline: React.FC<TimelineProps> = ({
         return;
       }
 
+      // 트랙 제약 조건 확인
+      const targetTrack = tracks.find((t) => t.id === targetTrackId);
+      if (
+        targetTrack?.allowedTypes &&
+        !targetTrack.allowedTypes.includes(draggedBlock.type)
+      ) {
+        setDropTarget(null); // 허용되지 않으면 드롭 타겟 설정 안 함
+        setSnapGuidePosition(null);
+        return;
+      }
+
       const allBlocks = blocks.filter((b) => b.id !== dragInfo.blockId);
 
       let newPosition = timePosition;
@@ -587,6 +599,7 @@ const Timeline: React.FC<TimelineProps> = ({
       const potentialStart = timePosition;
       const potentialEnd = potentialStart + draggedBlock.duration;
 
+      // (이하 스냅 로직 동일)
       if (parentBlock) {
         const parentStart = parentBlock.starttime;
         const parentEnd = parentBlock.starttime + parentBlock.duration;
