@@ -144,8 +144,10 @@ export const useDragAndDrop = (
       }
 
       const targetTrack = tracks.find((t) => t.id === targetTrackId);
+      // 수정: allowedTypes가 비어 있으면 모든 타입 허용
       if (
         targetTrack?.allowedTypes &&
+        targetTrack.allowedTypes.length > 0 &&
         !targetTrack.allowedTypes.includes(draggedBlock.type)
       ) {
         setDropTarget(null);

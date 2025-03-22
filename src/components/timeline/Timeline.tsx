@@ -15,8 +15,8 @@ import {
 import { TimeAxis } from "./components/TimeAxis";
 import { BlockRow } from "./components/BlockRow";
 import { ParentBlockComponent } from "./components/ParentBlockComponent";
-import { v4 as uuidv4 } from "uuid";
 import { useDragAndDrop } from "./hooks/dragAndDrop";
+import { v4 as uuidv4 } from "uuid";
 
 const Timeline: React.FC<TimelineProps> = ({
   totalTime,
@@ -69,17 +69,6 @@ const Timeline: React.FC<TimelineProps> = ({
         ...prev.slice(blockIndex + 1),
       ];
     });
-  };
-
-  const updateTrackTypes = (
-    trackId: string,
-    selectedTypes: BlockType[] | null
-  ) => {
-    setTracks((prev) =>
-      prev.map((t) =>
-        t.id === trackId ? { ...t, allowedTypes: selectedTypes || [] } : t
-      )
-    );
   };
 
   useEffect(() => {
@@ -235,7 +224,6 @@ const Timeline: React.FC<TimelineProps> = ({
             onFocus={setFocusedBlockId}
             mode={mode}
             onDoubleClick={onBlockDoubleClick}
-            updateTrackTypes={updateTrackTypes}
           />
         ))}
         {snapGuidePosition !== null && (

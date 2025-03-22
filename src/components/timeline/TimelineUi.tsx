@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { TOTAL_TIME } from "./constants";
 import { Track, Block, TimelineMode, BlockType } from "./types";
 import Timeline from "./Timeline";
+import { TrackSettingsDrawer } from "./components/TrackSettingsDrawer";
 
 interface Timeline {
   id: string;
@@ -38,12 +39,12 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
 
   const [selectedBlockType, setSelectedBlockType] = React.useState<BlockType>(
     BlockType.Video
-  ); // 드롭다운 상태 추가
+  );
 
   const addBlock = () => {
     const newBlock: Block = {
       id: uuidv4(),
-      type: selectedBlockType, // 선택된 타입 사용
+      type: selectedBlockType,
       duration: 5,
       starttime: 0,
       trackId: currentTimeline.tracks[0]?.id ?? uuidv4(),
@@ -87,7 +88,11 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
               ...t,
               tracks: [
                 ...t.tracks,
-                { id: newId, label: `Track ${t.tracks.length + 1}` },
+                {
+                  id: newId,
+                  label: `Track ${t.tracks.length + 1}`,
+                  allowedTypes: [],
+                },
               ],
             }
           : t
@@ -129,7 +134,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
         parentId: currentTimelineId,
         totalTime: TOTAL_TIME,
         isSplitEnabled: false,
-        tracks: [{ id: uuidv4(), label: "Sub Track 1" }],
+        tracks: [{ id: uuidv4(), label: "Sub Track 1", allowedTypes: [] }],
         blocks: [],
         focusedBlockId: null,
         mode: TimelineMode.Hand,
@@ -153,9 +158,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
   };
 
   const handleExit = () => {
-    if (parentTimeline) {
-      setCurrentTimelineId(parentTimeline.id);
-    }
+    if (parentTimeline) setCurrentTimelineId(parentTimeline.id);
   };
 
   const handleTotalTimeChange = (value: number) => {
@@ -214,6 +217,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       )
     );
   };
+
   const handleTracksChange: React.Dispatch<React.SetStateAction<Track[]>> = (
     value
   ) => {
@@ -228,115 +232,125 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       )
     );
   };
+
   return (
-    <div className="w-full" style={{ padding: "0 60px", overflow: "hidden" }}>
-      {parentTimeline && (
+    <div
+      className="w-full"
+      style={{ padding: "0 60px", overflow: "hidden", display: "flex" }}
+    >
+      <div style={{ flex: 1 }}>
+        {parentTimeline && (
+          <div style={{ marginBottom: "20px" }}>
+            {parentBlockId && (
+              <ParentBlockInfo
+                blockId={parentBlockId}
+                blocks={parentTimeline.blocks}
+              />
+            )}
+            <button onClick={handleExit} style={buttonStyle("#ff9800")}>
+              상위 타임라인으로 돌아가기
+            </button>
+          </div>
+        )}
         <div style={{ marginBottom: "20px" }}>
-          {parentBlockId && (
-            <ParentBlockInfo
-              blockId={parentBlockId}
-              blocks={parentTimeline.blocks}
+          <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
+            <span>전체 타임라인 시간 (초):</span>
+            <input
+              type="number"
+              value={currentTimeline.totalTime}
+              onChange={(e) => handleTotalTimeChange(Number(e.target.value))}
+              style={{ width: "80px" }}
             />
-          )}
-          <button onClick={handleExit} style={buttonStyle("#ff9800")}>
-            상위 타임라인으로 돌아가기
-          </button>
-        </div>
-      )}
-      <div style={{ marginBottom: "20px" }}>
-        <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-          <span>전체 타임라인 시간 (초):</span>
-          <input
-            type="number"
-            value={currentTimeline.totalTime}
-            onChange={(e) => handleTotalTimeChange(Number(e.target.value))}
-            style={{ width: "80px" }}
-          />
-          <button
-            onClick={handleSplitToggle}
-            style={buttonStyle(
-              currentTimeline.isSplitEnabled ? "#ff4444" : "#4444ff"
-            )}
-          >
-            {currentTimeline.isSplitEnabled
-              ? "쪼개기 모드 끄기"
-              : "쪼개기 모드 켜기"}
-          </button>
-          <select
-            value={selectedBlockType}
-            onChange={(e) => setSelectedBlockType(e.target.value as BlockType)}
-            style={{ padding: "5px", borderRadius: "4px" }}
-          >
-            <option value={BlockType.Video}>Video</option>
-            <option value={BlockType.Audio}>Audio</option>
-            <option value={BlockType.Animation}>Animation</option>
-          </select>
-          <button onClick={addBlock} style={buttonStyle("#4caf50")}>
-            블록 추가
-          </button>
-          <button
-            onClick={deleteBlock}
-            disabled={
-              currentTimeline.focusedBlockId === null ||
-              currentTimeline.mode !== TimelineMode.Select
-            }
-            style={buttonStyle(
-              currentTimeline.focusedBlockId === null ||
+            <button
+              onClick={handleSplitToggle}
+              style={buttonStyle(
+                currentTimeline.isSplitEnabled ? "#ff4444" : "#4444ff"
+              )}
+            >
+              {currentTimeline.isSplitEnabled
+                ? "쪼개기 모드 끄기"
+                : "쪼개기 모드 켜기"}
+            </button>
+            <select
+              value={selectedBlockType}
+              onChange={(e) =>
+                setSelectedBlockType(e.target.value as BlockType)
+              }
+              style={{ padding: "5px", borderRadius: "4px" }}
+            >
+              <option value={BlockType.Video}>Video</option>
+              <option value={BlockType.Audio}>Audio</option>
+              <option value={BlockType.Animation}>Animation</option>
+            </select>
+            <button onClick={addBlock} style={buttonStyle("#4caf50")}>
+              블록 추가
+            </button>
+            <button
+              onClick={deleteBlock}
+              disabled={
+                currentTimeline.focusedBlockId === null ||
                 currentTimeline.mode !== TimelineMode.Select
-                ? "#cccccc"
-                : "#f44336"
-            )}
-          >
-            블록 삭제
-          </button>
-          <button
-            onClick={handleModeChange}
-            style={buttonStyle(
-              currentTimeline.mode === TimelineMode.Select
-                ? "#2196f3"
-                : "#ff9800"
-            )}
-          >
-            {currentTimeline.mode === TimelineMode.Select
-              ? "현재: 선택 모드"
-              : "현재: 핸드 모드"}
-          </button>
-          <button onClick={addTrack} style={buttonStyle("#4caf50")}>
-            트랙 추가
-          </button>
-          <button
-            onClick={removeTrack}
-            disabled={currentTimeline.tracks.length <= 1}
-            style={buttonStyle(
-              currentTimeline.tracks.length <= 1 ? "#cccccc" : "#f44336"
-            )}
-          >
-            트랙 제거
-          </button>
+              }
+              style={buttonStyle(
+                currentTimeline.focusedBlockId === null ||
+                  currentTimeline.mode !== TimelineMode.Select
+                  ? "#cccccc"
+                  : "#f44336"
+              )}
+            >
+              블록 삭제
+            </button>
+            <button
+              onClick={handleModeChange}
+              style={buttonStyle(
+                currentTimeline.mode === TimelineMode.Select
+                  ? "#2196f3"
+                  : "#ff9800"
+              )}
+            >
+              {currentTimeline.mode === TimelineMode.Select
+                ? "현재: 선택 모드"
+                : "현재: 핸드 모드"}
+            </button>
+            <button onClick={addTrack} style={buttonStyle("#4caf50")}>
+              트랙 추가
+            </button>
+            <button
+              onClick={removeTrack}
+              disabled={currentTimeline.tracks.length <= 1}
+              style={buttonStyle(
+                currentTimeline.tracks.length <= 1 ? "#cccccc" : "#f44336"
+              )}
+            >
+              트랙 제거
+            </button>
+          </div>
         </div>
+        <Timeline
+          totalTime={currentTimeline.totalTime}
+          isSplitEnabled={currentTimeline.isSplitEnabled}
+          blocks={currentTimeline.blocks}
+          setBlocks={handleBlocksChange}
+          tracks={currentTimeline.tracks}
+          setTracks={handleTracksChange}
+          focusedBlockId={currentTimeline.focusedBlockId}
+          setFocusedBlockId={handleFocusChange}
+          mode={currentTimeline.mode}
+          onBlockDoubleClick={handleDoubleClick}
+          parentBlock={
+            parentBlockId && parentTimeline
+              ? parentTimeline.blocks.find((b) => b.id === parentBlockId)
+              : undefined
+          }
+        />
       </div>
-      <Timeline
-        totalTime={currentTimeline.totalTime}
-        isSplitEnabled={currentTimeline.isSplitEnabled}
-        blocks={currentTimeline.blocks}
-        setBlocks={handleBlocksChange}
+      <TrackSettingsDrawer
         tracks={currentTimeline.tracks}
-        focusedBlockId={currentTimeline.focusedBlockId}
-        setFocusedBlockId={handleFocusChange}
-        mode={currentTimeline.mode}
-        onBlockDoubleClick={handleDoubleClick}
         setTracks={handleTracksChange}
-        parentBlock={
-          parentBlockId && parentTimeline
-            ? parentTimeline.blocks.find((b) => b.id === parentBlockId)
-            : undefined
-        }
       />
     </div>
   );
 };
-
-export default TimelineUi;
 
 const ParentBlockInfo: React.FC<{ blockId: string; blocks: Block[] }> = ({
   blockId,
@@ -371,3 +385,5 @@ const buttonStyle = (bgColor: string) => ({
   cursor: "pointer",
   margin: "0 5px",
 });
+
+export default TimelineUi;

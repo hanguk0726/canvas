@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Block, BlockType, TimelineMode } from "../types";
-import { SCALE, MIN_DURATION, BLOCK_HEIGHT } from "../constants";
+import { BLOCK_HEIGHT, SCALE, MIN_DURATION } from "../constants";
 
 interface BlockComponentProps {
   block: Block;
@@ -151,11 +151,14 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
       : block.type === BlockType.Audio
       ? "green"
       : "purple";
+  // 커서 스타일 개선: 선택 상태(isFocused) 반영
   const cursorStyle = isSplitEnabled
     ? "crosshair"
     : mode === TimelineMode.Select
-    ? "pointer"
-    : "grab";
+    ? isFocused
+      ? "default" // 선택된 블록일 때는 기본 커서
+      : "pointer" // 선택 모드에서 선택되지 않은 블록은 포인터
+    : "grab"; // 핸드 모드에서는 드래그 가능
 
   return (
     <div
@@ -202,10 +205,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
           top: 0,
           width: "10px",
           height: "100%",
-          backgroundColor:
-            isSplitEnabled || mode === TimelineMode.Select
-              ? "rgba(150, 150, 150, 0.6)"
-              : "rgba(255, 0, 0, 0.6)",
+          backgroundColor: "rgba(255, 0, 0, 0)",
           cursor:
             isSplitEnabled || mode === TimelineMode.Select
               ? "not-allowed"
