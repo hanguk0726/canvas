@@ -105,9 +105,12 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   onDoubleClick,
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
-  const resizeData = useRef<{ startX: number; origDuration: number } | null>(
-    null
-  );
+  const resizeData = useRef<{
+    startX: number;
+    origDuration: number;
+    origStarttime: number;
+    isLeft: boolean;
+  } | null>(null);
   const [splitPreview, setSplitPreview] = useState<number | null>(null);
 
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -128,11 +131,32 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
     );
   };
 
-  const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  // 오른쪽 리사이즈
+  const onRightResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isSplitEnabled || mode === "select") return;
     e.preventDefault();
     e.stopPropagation();
-    resizeData.current = { startX: e.clientX, origDuration: block.duration };
+    resizeData.current = {
+      startX: e.clientX,
+      origDuration: block.duration,
+      origStarttime: block.starttime,
+      isLeft: false,
+    };
+    window.addEventListener("mousemove", onResizing);
+    window.addEventListener("mouseup", onResizeMouseUp);
+  };
+
+  // 왼쪽 리사이즈
+  const onLeftResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isSplitEnabled || mode === "select") return;
+    e.preventDefault();
+    e.stopPropagation();
+    resizeData.current = {
+      startX: e.clientX,
+      origDuration: block.duration,
+      origStarttime: block.starttime,
+      isLeft: true,
+    };
     window.addEventListener("mousemove", onResizing);
     window.addEventListener("mouseup", onResizeMouseUp);
   };
@@ -140,10 +164,28 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   const onResizing = (e: MouseEvent) => {
     if (!resizeData.current) return;
     const deltaSeconds = (e.clientX - resizeData.current.startX) / SCALE;
-    let newDuration = resizeData.current.origDuration + deltaSeconds;
-    newDuration = Math.max(MIN_DURATION, newDuration);
-    newDuration = Math.min(boundaries.max - block.starttime, newDuration);
-    updateBlock({ ...block, duration: Math.round(newDuration * 100) / 100 });
+
+    if (resizeData.current.isLeft) {
+      // 왼쪽 리사이즈: starttime 변경, duration 조정
+      let newStarttime = resizeData.current.origStarttime + deltaSeconds;
+      newStarttime = Math.max(boundaries.min, newStarttime); // 최소 경계
+      const newDuration =
+        resizeData.current.origDuration +
+        (resizeData.current.origStarttime - newStarttime);
+      if (newDuration >= MIN_DURATION) {
+        updateBlock({
+          ...block,
+          starttime: Math.round(newStarttime * 100) / 100,
+          duration: Math.round(newDuration * 100) / 100,
+        });
+      }
+    } else {
+      // 오른쪽 리사이즈: duration만 변경
+      let newDuration = resizeData.current.origDuration + deltaSeconds;
+      newDuration = Math.max(MIN_DURATION, newDuration);
+      newDuration = Math.min(boundaries.max - block.starttime, newDuration);
+      updateBlock({ ...block, duration: Math.round(newDuration * 100) / 100 });
+    }
   };
 
   const onResizeMouseUp = () => {
@@ -253,6 +295,21 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
           }}
         />
       )}
+      {/* 왼쪽 리사이즈 핸들 */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: "10px",
+          height: "100%",
+          backgroundColor: "rgba(172, 48, 48, 0)",
+          cursor:
+            isSplitEnabled || mode === "select" ? "not-allowed" : "ew-resize",
+        }}
+        onMouseDown={onLeftResizeMouseDown}
+      ></div>
+      {/* 오른쪽 리사이즈 핸들 */}
       <div
         style={{
           position: "absolute",
@@ -267,7 +324,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
           cursor:
             isSplitEnabled || mode === "select" ? "not-allowed" : "ew-resize",
         }}
-        onMouseDown={onResizeMouseDown}
+        onMouseDown={onRightResizeMouseDown}
       ></div>
     </div>
   );
