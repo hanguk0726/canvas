@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { BlockType, TimelineMode, TOTAL_TIME } from "../components/timeline/Timeline";
 import TimelineUi from "../components/timeline/TimelineUi";
+import { BlockType, TimelineMode } from "../components/timeline/types";
+import { TOTAL_TIME } from "../components/timeline/constants";
 
 interface Timeline {
   id: string;

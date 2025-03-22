@@ -1,12 +1,8 @@
 import React from "react";
-import TimelineComponent, {
-  Block,
-  BlockType,
-  TimelineMode,
-  TOTAL_TIME,
-  Track,
-} from "./Timeline";
 import { v4 as uuidv4 } from "uuid";
+import { TOTAL_TIME } from "./constants";
+import { Track, Block, TimelineMode, BlockType } from "./types";
+import Timeline from "./Timeline";
 
 interface Timeline {
   id: string;
@@ -218,7 +214,20 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       )
     );
   };
-
+  const handleTracksChange: React.Dispatch<React.SetStateAction<Track[]>> = (
+    value
+  ) => {
+    setTimelines((prev) =>
+      prev.map((t) =>
+        t.id === currentTimelineId
+          ? {
+              ...t,
+              tracks: typeof value === "function" ? value(t.tracks) : value,
+            }
+          : t
+      )
+    );
+  };
   return (
     <div className="w-full" style={{ padding: "0 60px", overflow: "hidden" }}>
       {parentTimeline && (
@@ -306,7 +315,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
           </button>
         </div>
       </div>
-      <TimelineComponent
+      <Timeline
         totalTime={currentTimeline.totalTime}
         isSplitEnabled={currentTimeline.isSplitEnabled}
         blocks={currentTimeline.blocks}
@@ -316,6 +325,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
         setFocusedBlockId={handleFocusChange}
         mode={currentTimeline.mode}
         onBlockDoubleClick={handleDoubleClick}
+        setTracks={handleTracksChange}
         parentBlock={
           parentBlockId && parentTimeline
             ? parentTimeline.blocks.find((b) => b.id === parentBlockId)
