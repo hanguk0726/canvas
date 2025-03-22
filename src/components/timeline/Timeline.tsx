@@ -804,7 +804,13 @@ const Timeline: React.FC<TimelineProps> = ({
   }, [dragInfo, handleDragging, handleDragEnd]);
 
   const focusedBlock = blocks.find((b) => b.id === focusedBlockId);
-
+  const handleBlockChange = (field: keyof Block, value: string | number) => {
+    if (!focusedBlock) return;
+    const updatedBlock = { ...focusedBlock, [field]: value };
+    setBlocks((prev) =>
+      prev.map((b) => (b.id === focusedBlock.id ? updatedBlock : b))
+    );
+  };
   return (
     <div>
       <div
@@ -903,19 +909,90 @@ const Timeline: React.FC<TimelineProps> = ({
         {focusedBlock ? (
           <div>
             <h3>선택된 블록 정보</h3>
-            <p>ID: {focusedBlock.id}</p>
-            <p>타입: {focusedBlock.type}</p>
-            <p>
-              트랙:{" "}
-              {tracks.find((t) => t.id === focusedBlock.trackId)?.label ||
-                "Unknown"}
-            </p>
-            <p>시작 시간: {focusedBlock.starttime}초</p>
-            <p>길이: {focusedBlock.duration}초</p>
-            <p>
-              끝 시간:{" "}
-              {(focusedBlock.starttime + focusedBlock.duration).toFixed(1)}초
-            </p>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+            >
+              <label>
+                ID:
+                <input
+                  type="text"
+                  value={focusedBlock.id}
+                  disabled // ID는 수정 불가
+                  style={{ marginLeft: "10px", width: "200px" }}
+                />
+              </label>
+              <label>
+                타입:
+                <select
+                  value={focusedBlock.type}
+                  onChange={(e) =>
+                    handleBlockChange("type", e.target.value as BlockType)
+                  }
+                  style={{ marginLeft: "10px", width: "200px" }}
+                >
+                  <option value={BlockType.Video}>Video</option>
+                  <option value={BlockType.Audio}>Audio</option>
+                  <option value={BlockType.Animation}>Animation</option>
+                </select>
+              </label>
+              <label>
+                트랙:
+                <select
+                  value={focusedBlock.trackId}
+                  onChange={(e) => handleBlockChange("trackId", e.target.value)}
+                  style={{ marginLeft: "10px", width: "200px" }}
+                >
+                  {tracks.map((track) => (
+                    <option key={track.id} value={track.id}>
+                      {track.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                시작 시간:
+                <input
+                  type="number"
+                  value={focusedBlock.starttime}
+                  onChange={(e) =>
+                    handleBlockChange("starttime", Number(e.target.value))
+                  }
+                  step="0.1"
+                  style={{ marginLeft: "10px", width: "200px" }}
+                />
+              </label>
+              <label>
+                길이:
+                <input
+                  type="number"
+                  value={focusedBlock.duration}
+                  onChange={(e) =>
+                    handleBlockChange("duration", Number(e.target.value))
+                  }
+                  step="0.1"
+                  min={MIN_DURATION}
+                  style={{ marginLeft: "10px", width: "200px" }}
+                />
+              </label>
+              <label>
+                끝 시간:
+                <input
+                  type="number"
+                  value={(
+                    focusedBlock.starttime + focusedBlock.duration
+                  ).toFixed(1)}
+                  onChange={(e) => {
+                    const newEndTime = Number(e.target.value);
+                    const newDuration = newEndTime - focusedBlock.starttime;
+                    if (newDuration >= MIN_DURATION) {
+                      handleBlockChange("duration", newDuration);
+                    }
+                  }}
+                  step="0.1"
+                  style={{ marginLeft: "10px", width: "200px" }}
+                />
+              </label>
+            </div>
           </div>
         ) : (
           <p>핸드 모드에서 블록을 클릭하여 선택하세요.</p>
