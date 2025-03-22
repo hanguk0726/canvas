@@ -24,7 +24,6 @@ const Timeline: React.FC<TimelineProps> = ({
   blocks,
   setBlocks,
   tracks,
-  setTracks,
   focusedBlockId,
   setFocusedBlockId,
   mode,
