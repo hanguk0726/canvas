@@ -1,21 +1,10 @@
 import React from "react";
 import { v4 as uuidv4 } from "uuid";
 import { DEFAULT_TOTAL_TIME } from "./constants";
-import { Track, Block, TimelineMode, BlockType } from "./types";
-import Timeline from "./Timeline";
+import { Track, Block, TimelineMode, BlockType, Timeline } from "./types";
 import { TrackSettingsDrawer } from "./components/TrackSettingsDrawer";
 import { useScaleManager } from "./hooks/useScaleManager";
-
-interface Timeline {
-  id: string;
-  parentId: string | null;
-  totalTime: number;
-  isSplitEnabled: boolean;
-  tracks: Track[];
-  blocks: Block[];
-  focusedBlockId: string | null;
-  mode: TimelineMode;
-}
+import TimelineComponent from "./components/TimelineComponent";
 
 interface TimelineUiProps {
   timelines: Timeline[];
@@ -342,7 +331,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
             </div>
           </div>
         </div>
-        <Timeline
+        <TimelineComponent
           totalTime={currentTimeline.totalTime}
           isSplitEnabled={currentTimeline.isSplitEnabled}
           blocks={currentTimeline.blocks}

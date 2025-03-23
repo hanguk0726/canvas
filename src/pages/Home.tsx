@@ -1,33 +1,9 @@
 import React, { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import TimelineUi from "../components/timeline/TimelineUi";
-import { BlockType, TimelineMode } from "../components/timeline/types";
+import { BlockType, Timeline, TimelineMode } from "../components/timeline/types";
 import { DEFAULT_TOTAL_TIME } from "../components/timeline/constants";
 
-interface Timeline {
-  id: string;
-  parentId: string | null;
-  totalTime: number;
-  isSplitEnabled: boolean;
-  tracks: Track[];
-  blocks: Block[];
-  focusedBlockId: string | null;
-  mode: TimelineMode;
-}
-
-interface Block {
-  id: string;
-  type: BlockType;
-  duration: number;
-  starttime: number;
-  trackId: string;
-  subTimelineId?: string; // 서브 타임라인 ID 참조
-}
-
-interface Track {
-  id: string;
-  label: string;
-}
 
 export const TimelineWrapper: React.FC = () => {
   const [timelines, setTimelines] = useState<Timeline[]>(() => {

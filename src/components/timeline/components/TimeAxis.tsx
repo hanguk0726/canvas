@@ -1,5 +1,6 @@
 import React from "react";
-import { TIME_AXIS_HEIGHT, TIME_AXIS_MARGIN_BOTTOM, getScale } from "../constants";
+import { TIME_AXIS_HEIGHT, TIME_AXIS_MARGIN_BOTTOM } from "../constants";
+import { getScale } from "../ScaleManager";
 
 interface TimeAxisProps {
   totalTime: number;

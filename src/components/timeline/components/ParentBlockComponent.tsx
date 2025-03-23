@@ -1,8 +1,8 @@
 // src/timeline/components/ParentBlockComponent.tsx
 import React from "react";
 import { Block, BlockType } from "../types";
-import { BLOCK_HEIGHT, getScale } from "../constants";
-
+import { BLOCK_HEIGHT } from "../constants";
+import { getScale } from "../ScaleManager";
 interface ParentBlockComponentProps {
   block: Block;
 }

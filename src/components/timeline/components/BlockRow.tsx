@@ -1,7 +1,8 @@
 import React, { useRef } from "react";
 import { Block, Track, TimelineMode } from "../types";
-import { TRACK_HEIGHT, TRACK_MARGIN_BOTTOM, getScale } from "../constants";
+import { TRACK_HEIGHT, TRACK_MARGIN_BOTTOM } from "../constants";
 import { BlockComponent } from "./BlockComponent";
+import { getScale } from "../ScaleManager";
 
 interface BlockRowProps {
   track: Track;

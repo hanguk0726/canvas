@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { Block, Track } from "../types";
 import {
-  getScale,
   SNAP_THRESHOLD,
   TIMELINE_PADDING,
   TRACK_HEIGHT,
@@ -11,6 +10,7 @@ import {
   PARENT_TRACK_HEIGHT,
   PARENT_TRACK_MARGIN_BOTTOM,
 } from "../constants";
+import { getScale } from "../ScaleManager";
 
 interface DragInfo {
   blockId: string;

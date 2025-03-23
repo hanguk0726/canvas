@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getScale, setScale, useScaleSubscription } from "../constants";
+import { getScale, setScale, useScaleSubscription } from "../ScaleManager";
 
 export const useScaleManager = () => {
   const [scale, setLocalScale] = useState<number>(getScale()); // 초기값 설정

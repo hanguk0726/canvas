@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Block, BlockType, TimelineMode } from "../types";
-import { BLOCK_HEIGHT, getScale, MIN_DURATION } from "../constants";
-
+import { BLOCK_HEIGHT, MIN_DURATION } from "../constants";
+import { getScale } from "../ScaleManager";
 interface BlockComponentProps {
   block: Block;
   boundaries: { min: number; max: number };

@@ -24,16 +24,14 @@ export enum TimelineMode {
   Hand = "hand",
 }
 
-export interface TimelineProps {
+
+export interface Timeline {
+  id: string;
+  parentId: string | null;
   totalTime: number;
   isSplitEnabled: boolean;
-  blocks: Block[];
-  setBlocks: React.Dispatch<React.SetStateAction<Block[]>>;
   tracks: Track[];
-  setTracks: React.Dispatch<React.SetStateAction<Track[]>>;
+  blocks: Block[];
   focusedBlockId: string | null;
-  setFocusedBlockId: (id: string | null) => void;
   mode: TimelineMode;
-  onBlockDoubleClick?: (blockId: string) => void;
-  parentBlock?: Block;
 }

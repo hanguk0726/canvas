@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import { TimelineProps, BlockType, Block } from "./types";
+import { BlockType, Block, TimelineMode, Track } from "../types";
 import {
   TIMELINE_PADDING,
   MIN_TIMELINE_HEIGHT,
@@ -9,16 +9,30 @@ import {
   TIME_AXIS_MARGIN_BOTTOM,
   PARENT_TRACK_HEIGHT,
   PARENT_TRACK_MARGIN_BOTTOM,
-  getScale,
   BLOCK_HEIGHT,
-} from "./constants";
-import { TimeAxis } from "./components/TimeAxis";
-import { BlockRow } from "./components/BlockRow";
-import { ParentBlockComponent } from "./components/ParentBlockComponent";
-import { useDragAndDrop } from "./hooks/dragAndDrop";
+} from "../constants";
+import { TimeAxis } from "./TimeAxis";
+import { BlockRow } from "./BlockRow";
+import { ParentBlockComponent } from "./ParentBlockComponent";
+import { useDragAndDrop } from "../hooks/dragAndDrop";
 import { v4 as uuidv4 } from "uuid";
+import { getScale } from "../ScaleManager";
 
-const Timeline: React.FC<TimelineProps> = ({
+export interface TimelineProps {
+  totalTime: number;
+  isSplitEnabled: boolean;
+  blocks: Block[];
+  setBlocks: React.Dispatch<React.SetStateAction<Block[]>>;
+  tracks: Track[];
+  setTracks: React.Dispatch<React.SetStateAction<Track[]>>;
+  focusedBlockId: string | null;
+  setFocusedBlockId: (id: string | null) => void;
+  mode: TimelineMode;
+  onBlockDoubleClick?: (blockId: string) => void;
+  parentBlock?: Block;
+}
+
+const TimelineComponent: React.FC<TimelineProps> = ({
   totalTime,
   isSplitEnabled,
   blocks,
@@ -344,4 +358,4 @@ const Timeline: React.FC<TimelineProps> = ({
   );
 };
 
-export default Timeline;
+export default TimelineComponent;
