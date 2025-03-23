@@ -1,4 +1,4 @@
-export const TOTAL_TIME = 420;
+export const DEFAULT_TOTAL_TIME = 420;
 export const TIMELINE_PADDING = 20;
 export const TIME_AXIS_HEIGHT = 30;
 export const TIME_AXIS_MARGIN_BOTTOM = 10;

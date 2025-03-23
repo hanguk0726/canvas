@@ -1,6 +1,6 @@
 import React from "react";
 import { v4 as uuidv4 } from "uuid";
-import { TOTAL_TIME } from "./constants";
+import { DEFAULT_TOTAL_TIME } from "./constants";
 import { Track, Block, TimelineMode, BlockType } from "./types";
 import Timeline from "./Timeline";
 import { TrackSettingsDrawer } from "./components/TrackSettingsDrawer";
@@ -132,7 +132,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       const newSubTimeline: Timeline = {
         id: subTimelineId,
         parentId: currentTimelineId,
-        totalTime: TOTAL_TIME,
+        totalTime: DEFAULT_TOTAL_TIME,
         isSplitEnabled: false,
         tracks: [{ id: uuidv4(), label: "Sub Track 1", allowedTypes: [] }],
         blocks: [],
