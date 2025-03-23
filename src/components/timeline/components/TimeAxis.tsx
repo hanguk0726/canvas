@@ -1,5 +1,5 @@
 import React from "react";
-import { TIME_AXIS_HEIGHT, TIME_AXIS_MARGIN_BOTTOM, SCALE } from "../constants";
+import { TIME_AXIS_HEIGHT, TIME_AXIS_MARGIN_BOTTOM, getScale } from "../constants";
 
 interface TimeAxisProps {
   totalTime: number;
@@ -23,7 +23,7 @@ export const TimeAxis: React.FC<TimeAxisProps> = ({ totalTime }) => {
       {ticks.map((t) => (
         <div
           key={t}
-          style={{ position: "absolute", left: `${t * SCALE}px`, top: 0 }}
+          style={{ position: "absolute", left: `${t * getScale()}px`, top: 0 }}
         >
           <div style={{ borderLeft: "1px solid #aaa", height: "10px" }} />
           <div style={{ fontSize: "10px" }}>{t}s</div>

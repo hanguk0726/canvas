@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { Block, Track } from "../types";
 import {
-  SCALE,
+  getScale,
   SNAP_THRESHOLD,
   TIMELINE_PADDING,
   TRACK_HEIGHT,
@@ -77,7 +77,7 @@ export const useDragAndDrop = (
     const previewLeftPos = clientX - offsetX;
     const relativeX =
       previewLeftPos - timelineRect.left - TIMELINE_PADDING + scrollLeft;
-    return Math.max(0, relativeX / SCALE);
+    return Math.max(0, relativeX / getScale());
   };
 
   const handleDragStart = (

@@ -4,6 +4,7 @@ import { DEFAULT_TOTAL_TIME } from "./constants";
 import { Track, Block, TimelineMode, BlockType } from "./types";
 import Timeline from "./Timeline";
 import { TrackSettingsDrawer } from "./components/TrackSettingsDrawer";
+import { useScaleManager } from "./hooks/useScaleManager";
 
 interface Timeline {
   id: string;
@@ -40,6 +41,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
   const [selectedBlockType, setSelectedBlockType] = React.useState<BlockType>(
     BlockType.Video
   );
+  const { scale, updateScale } = useScaleManager(); // 사용자가 제공한 useScaleManager 사용
 
   const addBlock = () => {
     const newBlock: Block = {
@@ -233,6 +235,10 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
     );
   };
 
+  // 줌 버튼 핸들러
+  const zoomIn = () => updateScale((prev) => prev + 2);
+  const zoomOut = () => updateScale((prev) => prev - 2);
+
   return (
     <div
       className="w-full"
@@ -324,6 +330,16 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
             >
               트랙 제거
             </button>
+            {/* 줌 컨트롤 */}
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <span>줌: {scale}x</span>
+              <button onClick={zoomIn} style={buttonStyle("#4caf50")}>
+                +
+              </button>
+              <button onClick={zoomOut} style={buttonStyle("#f44336")}>
+                -
+              </button>
+            </div>
           </div>
         </div>
         <Timeline

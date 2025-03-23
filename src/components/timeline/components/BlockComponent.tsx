@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Block, BlockType, TimelineMode } from "../types";
-import { BLOCK_HEIGHT, SCALE, MIN_DURATION } from "../constants";
+import { BLOCK_HEIGHT, getScale, MIN_DURATION } from "../constants";
 
 interface BlockComponentProps {
   block: Block;
@@ -93,7 +93,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
 
   const onResizing = (e: MouseEvent) => {
     if (!resizeData.current) return;
-    const deltaSeconds = (e.clientX - resizeData.current.startX) / SCALE;
+    const deltaSeconds = (e.clientX - resizeData.current.startX) / getScale();
 
     if (resizeData.current.isLeft) {
       let newStarttime = resizeData.current.origStarttime + deltaSeconds;
@@ -126,7 +126,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
     if (!isSplitEnabled || !blockRef.current) return;
     const rect = blockRef.current.getBoundingClientRect();
     const relativeX = e.clientX - rect.left;
-    const splitTime = Math.round((relativeX / SCALE) * 10) / 10;
+    const splitTime = Math.round((relativeX / getScale()) * 10) / 10;
     if (splitTime > 0 && splitTime < block.duration) setSplitPreview(splitTime);
     else setSplitPreview(null);
   };
@@ -165,8 +165,8 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
       ref={blockRef}
       style={{
         position: "absolute",
-        left: `${block.starttime * SCALE}px`,
-        width: `${block.duration * SCALE}px`,
+        left: `${block.starttime * getScale()}px`,
+        width: `${block.duration * getScale()}px`,
         height: `${BLOCK_HEIGHT}px`,
         backgroundColor: bgColor,
         color: "white",
@@ -190,7 +190,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
         <div
           style={{
             position: "absolute",
-            left: `${splitPreview * SCALE}px`,
+            left: `${splitPreview * getScale()}px`,
             width: "2px",
             height: "100%",
             backgroundColor: "red",

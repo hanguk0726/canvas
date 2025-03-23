@@ -9,7 +9,7 @@ import {
   TIME_AXIS_MARGIN_BOTTOM,
   PARENT_TRACK_HEIGHT,
   PARENT_TRACK_MARGIN_BOTTOM,
-  SCALE,
+  getScale,
   BLOCK_HEIGHT,
 } from "./constants";
 import { TimeAxis } from "./components/TimeAxis";
@@ -111,7 +111,7 @@ const Timeline: React.FC<TimelineProps> = ({
       dropTarget?.position != null
         ? timelineRect.left +
           TIMELINE_PADDING +
-          dropTarget.position * SCALE -
+          dropTarget.position * getScale() -
           scrollLeft
         : dragInfo.currentX - dragInfo.offsetX;
 
@@ -128,7 +128,7 @@ const Timeline: React.FC<TimelineProps> = ({
           position: "fixed",
           left: `${leftPos}px`,
           top: `${dropTrackTop}px`,
-          width: `${draggedBlock.duration * SCALE}px`,
+          width: `${draggedBlock.duration * getScale()}px`,
           height: `${BLOCK_HEIGHT}px`,
           backgroundColor: bgColor,
           borderRadius: "4px",
@@ -229,7 +229,7 @@ const Timeline: React.FC<TimelineProps> = ({
           <div
             style={{
               position: "absolute",
-              left: `${snapGuidePosition * SCALE + TIMELINE_PADDING}px`,
+              left: `${snapGuidePosition * getScale() + TIMELINE_PADDING}px`,
               top: 0,
               height: "100%",
               width: "2px",
