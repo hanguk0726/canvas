@@ -1,10 +1,20 @@
 import React from "react";
 import { v4 as uuidv4 } from "uuid";
-import { DEFAULT_TOTAL_TIME } from "./constants";
-import { Track, Block, TimelineMode, BlockType, Timeline } from "./types";
+import { Track, Block, TimelineMode, BlockType } from "./types";
 import { TrackSettingsDrawer } from "./components/TrackSettingsDrawer";
-import { useScaleManager } from "./hooks/useScaleManager";
+import { useConstantsManager } from "./hooks/useConstantsManager";
 import TimelineComponent from "./components/TimelineComponent";
+
+interface Timeline {
+  id: string;
+  parentId: string | null;
+  totalTime: number;
+  isSplitEnabled: boolean;
+  tracks: Track[];
+  blocks: Block[];
+  focusedBlockId: string | null;
+  mode: TimelineMode;
+}
 
 interface TimelineUiProps {
   timelines: Timeline[];
@@ -30,7 +40,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
   const [selectedBlockType, setSelectedBlockType] = React.useState<BlockType>(
     BlockType.Video
   );
-  const { scale, updateScale } = useScaleManager(); // 사용자가 제공한 useScaleManager 사용
+  const { constants, updateConstant } = useConstantsManager();
 
   const addBlock = () => {
     const newBlock: Block = {
@@ -123,7 +133,7 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
       const newSubTimeline: Timeline = {
         id: subTimelineId,
         parentId: currentTimelineId,
-        totalTime: DEFAULT_TOTAL_TIME,
+        totalTime: constants.defaultTotalTime, // 동적 값 사용
         isSplitEnabled: false,
         tracks: [{ id: uuidv4(), label: "Sub Track 1", allowedTypes: [] }],
         blocks: [],
@@ -224,9 +234,8 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
     );
   };
 
-  // 줌 버튼 핸들러
-  const zoomIn = () => updateScale((prev) => prev + 2);
-  const zoomOut = () => updateScale((prev) => prev - 2);
+  const zoomIn = () => updateConstant("scale", (prev) => prev + 2);
+  const zoomOut = () => updateConstant("scale", (prev) => prev - 2);
 
   return (
     <div
@@ -319,9 +328,8 @@ export const TimelineUi: React.FC<TimelineUiProps> = ({
             >
               트랙 제거
             </button>
-            {/* 줌 컨트롤 */}
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <span>줌: {scale}x</span>
+              <span>줌: {constants.scale}x</span>
               <button onClick={zoomIn} style={buttonStyle("#4caf50")}>
                 +
               </button>

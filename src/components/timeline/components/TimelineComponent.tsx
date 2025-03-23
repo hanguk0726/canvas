@@ -1,22 +1,11 @@
 import React, { useRef, useEffect } from "react";
 import { BlockType, Block, TimelineMode, Track } from "../types";
-import {
-  TIMELINE_PADDING,
-  MIN_TIMELINE_HEIGHT,
-  TRACK_HEIGHT,
-  TRACK_MARGIN_BOTTOM,
-  TIME_AXIS_HEIGHT,
-  TIME_AXIS_MARGIN_BOTTOM,
-  PARENT_TRACK_HEIGHT,
-  PARENT_TRACK_MARGIN_BOTTOM,
-  BLOCK_HEIGHT,
-} from "../constants";
 import { TimeAxis } from "./TimeAxis";
 import { BlockRow } from "./BlockRow";
 import { ParentBlockComponent } from "./ParentBlockComponent";
 import { useDragAndDrop } from "../hooks/dragAndDrop";
 import { v4 as uuidv4 } from "uuid";
-import { getScale } from "../ScaleManager";
+import { getTrackHeight,getScale, getTrackMarginBottom, getTimeAxisHeight, getTimeAxisMarginBottom, getParentTrackHeight, getTimelinePadding, getBlockHeight, getMinTimelineHeight, getParentTrackMarginBottom } from "../constants";
 
 export interface TimelineProps {
   totalTime: number;
@@ -103,11 +92,11 @@ const TimelineComponent: React.FC<TimelineProps> = ({
 
     const timelineRect = timelineRef.current.getBoundingClientRect();
     const scrollLeft = timelineRef.current.scrollLeft;
-    const totalTrackHeight = TRACK_HEIGHT + TRACK_MARGIN_BOTTOM;
-    const totalTimeAxisHeight = TIME_AXIS_HEIGHT + TIME_AXIS_MARGIN_BOTTOM;
-    const totalParentTrackHeight = parentBlock
-      ? PARENT_TRACK_HEIGHT + PARENT_TRACK_MARGIN_BOTTOM
-      : 0;
+    const totalTrackHeight = getTrackHeight() + getTrackMarginBottom();
+	const totalTimeAxisHeight = getTimeAxisHeight() + getTimeAxisMarginBottom();
+	const totalParentTrackHeight = parentBlock
+		? getParentTrackHeight() + getTimeAxisMarginBottom()
+		: 0;
 
     const dropTrackIndex = dropTarget?.trackId
       ? tracks.findIndex((t) => t.id === dropTarget.trackId)
@@ -115,7 +104,7 @@ const TimelineComponent: React.FC<TimelineProps> = ({
     const dropTrackTop =
       dropTrackIndex >= 0
         ? timelineRect.top +
-          TIMELINE_PADDING +
+          getTimelinePadding() +
           totalTimeAxisHeight +
           totalParentTrackHeight +
           dropTrackIndex * totalTrackHeight
@@ -124,7 +113,7 @@ const TimelineComponent: React.FC<TimelineProps> = ({
     const leftPos =
       dropTarget?.position != null
         ? timelineRect.left +
-          TIMELINE_PADDING +
+          getTimelinePadding() +
           dropTarget.position * getScale() -
           scrollLeft
         : dragInfo.currentX - dragInfo.offsetX;
@@ -143,7 +132,7 @@ const TimelineComponent: React.FC<TimelineProps> = ({
           left: `${leftPos}px`,
           top: `${dropTrackTop}px`,
           width: `${draggedBlock.duration * getScale()}px`,
-          height: `${BLOCK_HEIGHT}px`,
+          height: `${getBlockHeight()}px`,
           backgroundColor: bgColor,
           borderRadius: "4px",
           padding: "4px",
@@ -180,8 +169,8 @@ const TimelineComponent: React.FC<TimelineProps> = ({
           overflowX: "auto",
           overflowY: "visible",
           width: "100%",
-          padding: `${TIMELINE_PADDING}px`,
-          minHeight: `${MIN_TIMELINE_HEIGHT}px`,
+          padding: `${getTimelinePadding()}px`,
+          minHeight: `${getMinTimelineHeight()}px`,
         }}
         onClick={(e) => {
           if (
@@ -197,9 +186,9 @@ const TimelineComponent: React.FC<TimelineProps> = ({
           <div
             style={{
               position: "relative",
-              height: `${PARENT_TRACK_HEIGHT}px`,
+              height: `${getParentTrackHeight()}px`,
               borderBottom: "1px dashed #aaa",
-              marginBottom: `${PARENT_TRACK_MARGIN_BOTTOM}px`,
+              marginBottom: `${getParentTrackMarginBottom()}px`,
               backgroundColor: "rgba(0, 0, 0, 0.05)",
             }}
           >
@@ -243,7 +232,7 @@ const TimelineComponent: React.FC<TimelineProps> = ({
           <div
             style={{
               position: "absolute",
-              left: `${snapGuidePosition * getScale() + TIMELINE_PADDING}px`,
+              left: `${snapGuidePosition * getScale() + getTimelinePadding()}px`,
               top: 0,
               height: "100%",
               width: "2px",

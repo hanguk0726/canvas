@@ -1,16 +1,15 @@
 import { useState, useCallback } from "react";
 import { Block, Track } from "../types";
 import {
-  SNAP_THRESHOLD,
-  TIMELINE_PADDING,
-  TRACK_HEIGHT,
-  TRACK_MARGIN_BOTTOM,
-  TIME_AXIS_HEIGHT,
-  TIME_AXIS_MARGIN_BOTTOM,
-  PARENT_TRACK_HEIGHT,
-  PARENT_TRACK_MARGIN_BOTTOM,
+  getParentTrackHeight,
+  getScale,
+  getSnapThreshold,
+  getTimeAxisHeight,
+  getTimeAxisMarginBottom,
+  getTimelinePadding,
+  getTrackHeight,
+  getTrackMarginBottom,
 } from "../constants";
-import { getScale } from "../ScaleManager";
 
 interface DragInfo {
   blockId: string;
@@ -76,7 +75,7 @@ export const useDragAndDrop = (
   ) => {
     const previewLeftPos = clientX - offsetX;
     const relativeX =
-      previewLeftPos - timelineRect.left - TIMELINE_PADDING + scrollLeft;
+      previewLeftPos - timelineRect.left - getTimelinePadding() + scrollLeft;
     return Math.max(0, relativeX / getScale());
   };
 
@@ -123,10 +122,11 @@ export const useDragAndDrop = (
         scrollLeft
       );
 
-      const totalTrackHeight = TRACK_HEIGHT + TRACK_MARGIN_BOTTOM;
-      const totalTimeAxisHeight = TIME_AXIS_HEIGHT + TIME_AXIS_MARGIN_BOTTOM;
+      const totalTrackHeight = getTrackHeight() + getTrackMarginBottom();
+      const totalTimeAxisHeight =
+        getTimeAxisHeight() + getTimeAxisMarginBottom();
       const totalParentTrackHeight = parentBlock
-        ? PARENT_TRACK_HEIGHT + PARENT_TRACK_MARGIN_BOTTOM
+        ? getParentTrackHeight() + getTimeAxisMarginBottom()
         : 0;
       const offsetY = totalTimeAxisHeight + totalParentTrackHeight;
 
@@ -163,16 +163,16 @@ export const useDragAndDrop = (
       if (parentBlock) {
         const parentStart = parentBlock.starttime;
         const parentEnd = parentBlock.starttime + parentBlock.duration;
-        if (Math.abs(potentialStart - parentStart) < SNAP_THRESHOLD) {
+        if (Math.abs(potentialStart - parentStart) < getSnapThreshold()) {
           newPosition = parentStart;
           snapPosition = parentStart;
-        } else if (Math.abs(potentialStart - parentEnd) < SNAP_THRESHOLD) {
+        } else if (Math.abs(potentialStart - parentEnd) < getSnapThreshold()) {
           newPosition = parentEnd;
           snapPosition = parentEnd;
-        } else if (Math.abs(potentialEnd - parentStart) < SNAP_THRESHOLD) {
+        } else if (Math.abs(potentialEnd - parentStart) < getSnapThreshold()) {
           newPosition = parentStart - draggedBlock.duration;
           snapPosition = parentStart;
-        } else if (Math.abs(potentialEnd - parentEnd) < SNAP_THRESHOLD) {
+        } else if (Math.abs(potentialEnd - parentEnd) < getSnapThreshold()) {
           newPosition = parentEnd - draggedBlock.duration;
           snapPosition = parentEnd;
         }
@@ -183,19 +183,19 @@ export const useDragAndDrop = (
         for (const block of allBlocks) {
           const blockStart = block.starttime;
           const blockEnd = block.starttime + block.duration;
-          if (Math.abs(potentialStart - blockStart) < SNAP_THRESHOLD) {
+          if (Math.abs(potentialStart - blockStart) < getSnapThreshold()) {
             newPosition = blockStart;
             snapPosition = blockStart;
             break;
-          } else if (Math.abs(potentialStart - blockEnd) < SNAP_THRESHOLD) {
+          } else if (Math.abs(potentialStart - blockEnd) < getSnapThreshold()) {
             newPosition = blockEnd;
             snapPosition = blockEnd;
             break;
-          } else if (Math.abs(potentialEnd - blockStart) < SNAP_THRESHOLD) {
+          } else if (Math.abs(potentialEnd - blockStart) < getSnapThreshold()) {
             newPosition = blockStart - draggedBlock.duration;
             snapPosition = blockStart;
             break;
-          } else if (Math.abs(potentialEnd - blockEnd) < SNAP_THRESHOLD) {
+          } else if (Math.abs(potentialEnd - blockEnd) < getSnapThreshold()) {
             newPosition = blockEnd - draggedBlock.duration;
             snapPosition = blockEnd;
             break;

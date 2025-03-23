@@ -1,7 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Block, BlockType, TimelineMode } from "../types";
-import { BLOCK_HEIGHT, MIN_DURATION } from "../constants";
-import { getScale } from "../ScaleManager";
+import { getBlockHeight, getMinDuration,getScale } from "../constants";
 interface BlockComponentProps {
   block: Block;
   boundaries: { min: number; max: number };
@@ -101,7 +100,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
       const newDuration =
         resizeData.current.origDuration +
         (resizeData.current.origStarttime - newStarttime);
-      if (newDuration >= MIN_DURATION) {
+      if (newDuration >= getMinDuration()) {
         updateBlock({
           ...block,
           starttime: Math.round(newStarttime * 100) / 100,
@@ -110,7 +109,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
       }
     } else {
       let newDuration = resizeData.current.origDuration + deltaSeconds;
-      newDuration = Math.max(MIN_DURATION, newDuration);
+      newDuration = Math.max(getMinDuration(), newDuration);
       newDuration = Math.min(boundaries.max - block.starttime, newDuration);
       updateBlock({ ...block, duration: Math.round(newDuration * 100) / 100 });
     }
@@ -167,7 +166,7 @@ export const BlockComponent: React.FC<BlockComponentProps> = ({
         position: "absolute",
         left: `${block.starttime * getScale()}px`,
         width: `${block.duration * getScale()}px`,
-        height: `${BLOCK_HEIGHT}px`,
+        height: `${getBlockHeight()}px`,
         backgroundColor: bgColor,
         color: "white",
         borderRadius: "4px",

@@ -1,6 +1,9 @@
 import React from "react";
-import { TIME_AXIS_HEIGHT, TIME_AXIS_MARGIN_BOTTOM } from "../constants";
-import { getScale } from "../ScaleManager";
+import {
+  getTimeAxisHeight,
+  getTimeAxisMarginBottom,
+  getScale,
+} from "../constants";
 
 interface TimeAxisProps {
   totalTime: number;
@@ -16,9 +19,9 @@ export const TimeAxis: React.FC<TimeAxisProps> = ({ totalTime }) => {
     <div
       style={{
         position: "relative",
-        height: `${TIME_AXIS_HEIGHT}px`,
+        height: `${getTimeAxisHeight()}px`,
         borderBottom: "1px solid #ccc",
-        marginBottom: `${TIME_AXIS_MARGIN_BOTTOM}px`,
+        marginBottom: `${getTimeAxisMarginBottom()}px`,
       }}
     >
       {ticks.map((t) => (

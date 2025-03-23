@@ -1,8 +1,7 @@
 // src/timeline/components/ParentBlockComponent.tsx
 import React from "react";
 import { Block, BlockType } from "../types";
-import { BLOCK_HEIGHT } from "../constants";
-import { getScale } from "../ScaleManager";
+import { getBlockHeight, getScale } from "../constants";
 interface ParentBlockComponentProps {
   block: Block;
 }
@@ -25,7 +24,7 @@ export const ParentBlockComponent: React.FC<ParentBlockComponentProps> = ({
         position: "absolute",
         left: `${block.starttime * getScale()}px`,
         width: `${block.duration * getScale()}px`,
-        height: `${BLOCK_HEIGHT}px`,
+        height: `${getBlockHeight()}px`,
         backgroundColor: bgColor,
         color: "white",
         borderRadius: "4px",

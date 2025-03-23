@@ -1,8 +1,7 @@
 import React, { useRef } from "react";
 import { Block, Track, TimelineMode } from "../types";
-import { TRACK_HEIGHT, TRACK_MARGIN_BOTTOM } from "../constants";
 import { BlockComponent } from "./BlockComponent";
-import { getScale } from "../ScaleManager";
+import { getTrackHeight, getTrackMarginBottom, getScale } from "../constants";
 
 interface BlockRowProps {
   track: Track;
@@ -51,9 +50,9 @@ export const BlockRow: React.FC<BlockRowProps> = ({
       ref={rowRef}
       style={{
         position: "relative",
-        height: `${TRACK_HEIGHT}px`,
+        height: `${getTrackHeight()}px`,
         borderBottom: "1px solid #ddd",
-        marginBottom: `${TRACK_MARGIN_BOTTOM}px`,
+        marginBottom: `${getTrackMarginBottom()}px`,
         backgroundColor: isDropTarget ? "rgba(0, 255, 0, 0.1)" : "transparent",
         transition: "background-color 0.2s",
         width: `${totalTime * getScale()}px`,
